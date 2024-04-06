@@ -10,7 +10,7 @@
 
 /* == Com ==*/
 #define SERIAL_BAUDRATE 230400 // Serial port baud rate
-#define I2C_CLOCK 1000000 // I2C clock in Hz
+#define I2C_CLOCK 400000 // I2C clock in Hz
 
 /* == Includes == */
 #include <avr/io.h>
@@ -40,7 +40,8 @@ static const float constYAir = 1.401;			// specific heat capacity ratio for air
 bool setMessageInProgress = false;
 char setReceivedChar;
 // Altimeter Setting
-double set_altStg = constStdP;
+//double set_altStg = constStdP;
+double set_altStg = 101200.0;
 
 /* == Sensors == */
 // A/G sensing
@@ -65,17 +66,17 @@ float temp_TATC;
 bool imuStatusPrev;
 bool imuStatus = 0;
 static const int8_t imuAdress = 0x68; // Default
-static const int8_t imuConfigReg = 0x1A;
-static const int8_t imuConfigValue = 7 << 3 | 2 << 0; // 7 -, 6 -, 543 EXT_SYNC_SET[2:0], 210 DLPF_CFG[2:0]
-static const int8_t imuSampleRateReg = 0x19;
-static const int8_t imuSampleRateValue = 2; // Sample Rate = Gyroscope Output Rate / (1 + SMPLRT_DIV)
-static const int8_t imuGyroDataStart = 0x43;
-static const int8_t imuGyroConfigReg = 0x1B;
-static const int8_t imuGyroConfigValue = 1 << 3; // 7 XG_ST, 6 YG_ST, 5 ZG_ST, 43 FS_SEL[1:0], 2 -, 1 -, 0 -;  1 = +-500dps = 1000
+static const uint8_t imuConfigReg = 0x1A;
+static const uint8_t imuConfigValue = 7 << 3 | 2 << 0; // 7 -, 6 -, 543 EXT_SYNC_SET[2:0], 210 DLPF_CFG[2:0]
+static const uint8_t imuSampleRateReg = 0x19;
+static const uint8_t imuSampleRateValue = 2; // Sample Rate = Gyroscope Output Rate / (1 + SMPLRT_DIV)
+static const uint8_t imuGyroDataStart = 0x43;
+static const uint8_t imuGyroConfigReg = 0x1B;
+static const uint8_t imuGyroConfigValue = 1 << 3; // 7 XG_ST, 6 YG_ST, 5 ZG_ST, 43 FS_SEL[1:0], 2 -, 1 -, 0 -;  1 = +-500dps = 1000
 static const float imuGyroFactor = 65.536; // 65536/1000
-static const int8_t imuAccelDataStart = 0x3B;
-static const int8_t imuAccelConfigReg = 0x1C;
-static const int8_t imuAccelConfigValue = 2 << 3; // 7 XA_ST, 6 YA_ST, 5 ZA_ST, 43 AFS_SEL[1:0], 2 -, 1 -, 0 -;  2 = +-8g = 16
+static const uint8_t imuAccelDataStart = 0x3B;
+static const uint8_t imuAccelConfigReg = 0x1C;
+static const uint8_t imuAccelConfigValue = 2 << 3; // 7 XA_ST, 6 YA_ST, 5 ZA_ST, 43 AFS_SEL[1:0], 2 -, 1 -, 0 -;  2 = +-8g = 16
 static const float imuAccelFactor = 4096.0; // 65536/16 
 
 float imu_ax, imu_ay, imu_az, imu_gx, imu_gy, imu_gz;
@@ -90,14 +91,19 @@ static const float imuGyrozErr = 0.0;
 // Mag
 bool magStatusPrev;
 bool magStatus = 0;
-static const int8_t magAdress = 0x0D; // QMC5883
-static const uint8_t magControlReg = 0x09; // Mode Control Register
+static const int8_t magAdress = 0x0D;		// QMC5883
+static const uint8_t magControlReg = 0x09;	// Mode Control Register
 static const uint8_t magControlValue = 
 0b00000001 | // Mode_Standby 0b00000000, Mode_Continuous 0b00000001
-0b00000100 | // 10 Hz 0b00000000, 50 Hz 0b00000100, 100 Hz 0b00001000, 200 Hz 0b00001100
-0b00000000 | // 2G 0b00000000, 8G 0b00010000
-0b10000000 ; // 64 0b11000000, 128 0b10000000, 256 0b01000000, 512 0b00000000
-static const uint8_t magDatastart = 0x00; // QMC5883
+0b00000000 | // 10 Hz 0b00000000, 50 Hz 0b00000100, 100 Hz 0b00001000, 200 Hz 0b00001100
+0b00010000 | // 2G 0b00000000, 8G 0b00010000
+0b00000000 ; // 64 0b11000000, 128 0b10000000, 256 0b01000000, 512 0b00000000
+static const uint8_t magSRReg = 0x0B;		// Define Set/Reset period
+static const uint8_t magSRValue = 0x01;		// Define Set/Reset period
+uint8_t magDataReady = 0;
+static const uint8_t magDataReadyReg = 0x06;
+static const uint8_t magDataStart = 0x00;	// QMC5883
+static const uint8_t magRetryInterval = 2;	// ms
 float mag_x, mag_y, mag_z; 
 float mag_hdg;
 int magx, magy, magz;
@@ -188,17 +194,17 @@ void setup() {
 	PORTB |= (1 << PORTB2);		// A/G sense pin 3 pull-up
 	// IMU
 	imuInit();
-	_delay_ms(2);
+	_delay_ms(1);
 	// Mag
 	magInit();
-	_delay_ms(2);
+	_delay_ms(1);
 	// Press
 	bmp.begin(bmpOversampling);
-	_delay_ms(2);
+	_delay_ms(1);
 	// Diff
 	pres.Config(&Wire, diffAdress, 1.0f, -1.0f);
 	pres.Begin();
-	//_delay_ms(2);
+	//_delay_ms(1);
 	
 	// Delay after initialization
 	Serial.print("Initialization Ok!");
@@ -236,19 +242,19 @@ void loop() {
 	
 	// IMU
 	imuCheck();
-	_delay_ms(2);
+	_delay_ms(1);
 	imuRead();
 		
 	// Mag
 	magCheck();
-	_delay_ms(2);
+	_delay_ms(1);
 	magRead();
 	
 	// Press
 	pressStatusPrev = pressStatus;
 	if (bmp.begin()) {pressStatus =  true;} else {pressStatus =  false;}
 	if (!pressStatusPrev & pressStatus) {bmp.begin(bmpOversampling);}
-	_delay_ms(2);
+	_delay_ms(1);
 	press_press = bmp.readPressure();
 	
 	// Diff
@@ -257,7 +263,7 @@ void loop() {
 	if (!pressStatusPrev & pressStatus) {pres.Begin();}
 	_delay_ms(1);
 	pres.Read();
-	_delay_ms(2);
+	_delay_ms(1);
 	diff_pressPa = pres.pres_pa() + diffPressPaErr;
 	//diffDieTempC = pres.die_temp_c();
 	
@@ -269,9 +275,9 @@ void loop() {
 	// SAT
 	der_SATC = temp_TATC; // su anlik donusum faktoru yok.
 	// Pressure ALT ft
-	der_pressAltFt = 44330 * (1.0 - pow(press_press / constStdP, 0.1903));
+	der_pressAltFt = 145439.632767 * (1.0 - pow(press_press / constStdP, 0.1903));
 	// Indicated ALT ft
-	der_indAltFt = 44330 * (1.0 - pow(press_press / set_altStg, 0.1903));
+	der_indAltFt = 145439.632767 * (1.0 - pow(press_press / set_altStg, 0.1903));
 	// KIAS
 	der_kiasStatus = pressStatus & diffStatus;
 	der_kias = 1.943845249221964 * sqrt( ((2*constYAir*press_press)/((constYAir-1)*constStdAirD)) * ( pow( (press_press+diff_pressPa)/press_press, (constYAir-1.0)/constYAir ) - 1.0) );
@@ -341,7 +347,7 @@ void loop() {
 	// Indicated Alt ft
 	Serial.print("*der_indAltFt="); Serial.println(der_indAltFt);
 	// KIAS
-	Serial.print("*der_kiasStatus="); Serial.println(der_indAltFt);
+	Serial.print("*der_kiasStatus="); Serial.println(der_kiasStatus);
 	Serial.print("$der_kias="); Serial.println(der_kias);
 	// KTAS
 	Serial.print("*der_ktasStatus="); Serial.println(der_ktasStatus);
@@ -391,8 +397,7 @@ void imuInit() {
 void imuCheck() {
 	imuStatusPrev = imuStatus;	
 	Wire.beginTransmission(imuAdress);
-	if (Wire.endTransmission() == 0) {
-		imuStatus = true;} else {imuStatus = false;}	
+	if (Wire.endTransmission() == 0) {imuStatus = true;} else {imuStatus = false;}	
 	if (!imuStatusPrev & imuStatus) {imuInit();}
 }
 
@@ -420,6 +425,11 @@ void imuRead() {
 void magInit() {
 	
 	Wire.beginTransmission(magAdress);
+	Wire.write(magSRReg);
+	Wire.write(magSRValue);
+	Wire.endTransmission();
+	
+	Wire.beginTransmission(magAdress);
 	Wire.write(magControlReg);
 	Wire.write(magControlValue);
 	Wire.endTransmission();
@@ -433,21 +443,41 @@ void magCheck() {
 }
 
 void magRead() {
+	// Control if data is ready
 	Wire.beginTransmission(magAdress);
-	Wire.write(magDatastart);
+	Wire.write(magDataReadyReg);
 	Wire.endTransmission();
-	  
-	Wire.requestFrom(magAdress, 6);
-	if (6 <= Wire.available()) {
-		magx = (Wire.read() << 8 | Wire.read()) + magxErr;
-		magz = (Wire.read() << 8 | Wire.read()) + magzErr;
-		magy = (Wire.read() << 8 | Wire.read()) + magyErr;
-	}
+	
+	Wire.requestFrom(magAdress, 1);
+	while (Wire.available()) {magDataReady = Wire.read();}
+	
+	if (magDataReady != 0) {
 
-	mag_hdg = atan2(magz, magx) * 180 / PI;
-	if (mag_hdg < 0) {
-		mag_hdg += 360;
-	} 
+		Wire.beginTransmission(magAdress);
+		Wire.write(magDataStart);
+		Wire.endTransmission();
+		
+		Wire.requestFrom(magAdress, 6);
+		if (6 <= Wire.available()) {
+			magx = (Wire.read() << 8 | Wire.read()) + magxErr;
+			magz = (Wire.read() << 8 | Wire.read()) + magzErr;
+			magy = (Wire.read() << 8 | Wire.read()) + magyErr;
+		}
+		mag_hdg = atan2(magz, magx) * 180 / PI;
+		if (mag_hdg < 0) {
+			mag_hdg += 360;
+		}
+
+	} else {
+		_delay_ms(magRetryInterval);
+		Wire.requestFrom(magAdress, 1);
+		while (Wire.available()) {magDataReady = Wire.read();}
+		if (magDataReady == 0) {
+		magStatus = 0;
+		} else {
+			magRead();
+		}	
+	}
 }
 
 void readSettings() {
