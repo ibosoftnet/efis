@@ -267,7 +267,7 @@ void loop() {
 	// Roll
 	der_roll = atan2(imu_ax, imu_ay) * 180.0 / M_PI;
 	// SAT
-	der_SATC = temp_TATC; // Þu anlýk dönüþüm faktörü yok.
+	der_SATC = temp_TATC; // su anlik donusum faktoru yok.
 	// Pressure ALT ft
 	der_pressAltFt = 44330 * (1.0 - pow(press_press / constStdP, 0.1903));
 	// Indicated ALT ft
@@ -285,7 +285,7 @@ void loop() {
 	der_mach = sqrt( (2/(constYAir-1)) * ( pow( (diff_pressPa/press_press)+1.0, (constYAir-1.0)/constYAir ) - 1.0) );
 	if (isnan(der_mach)) {der_mach=0;} // If result of sqrt is nan, set 0 to result
 	// KCAS
-	der_kcas = der_kias; // Þu anlýk dönüþüm faktörü yok.
+	der_kcas = der_kias; // su anlik donusum faktoru yok.
 	
 	
 	
@@ -451,14 +451,14 @@ void magRead() {
 }
 
 void readSettings() {
-  if (Serial.available()) {													// Seri portta veri var mý kontrol et
+  if (Serial.available()) {													// Seri portta veri var mi kontrol et
 	  setReceivedChar = Serial.read();										// Bir karakter al
-	  if (setReceivedChar == '#') {											// Eðer alýnan karakter "#" ise
-		  setMessageInProgress = true;										// Mesaj alýmý baþladý
-		  /*} else if (setReceivedChar == '+') {							// Eðer alýnan karakter "+" ise
-		  setMessageInProgress = false;*/									// Mesaj alýmý tamamlandý
-		  } else if (setMessageInProgress && setReceivedChar != '\n') {		// Eðer mesaj alýmý devam ediyorsa ve alýnan karakter yeni satýr karakteri deðilse
-																			// Mesaj alýmý sýrasýnda ise, karakterleri iþle
+	  if (setReceivedChar == '#') {											// Eger alinan karakter "#" ise
+		  setMessageInProgress = true;										// Mesaj alimi basladi
+		  /*} else if (setReceivedChar == '+') {							// Eger alinan karakter "+" ise
+		  setMessageInProgress = false;*/									// Mesaj alimi tamamlandi
+		  } else if (setMessageInProgress && setReceivedChar != '\n') {		// Eger mesaj alimi devam ediyorsa ve alinan karakter yeni satir karakteri degilse
+																			// Mesaj alimi sirasinda ise, karakterleri isle
 		  if (setReceivedChar == '!') {
 			  String setCommand = Serial.readStringUntil('=');
 			if (setCommand == "!set_altStg") {
@@ -470,7 +470,7 @@ void readSettings() {
 				  valueString.trim();
 				  set_another_variable = valueString.toFloat();
 			} */
-			  // Diðer komutlar için benzer kontrolleri buraya ekleyebilirsiniz
+			  // Diger komutlar icin benzer kontrolleri buraya ekleyebilirsiniz
 		  }
 	  }
   }
