@@ -1,0 +1,11 @@
+pitot 0x28H 5V
+press i2c değil 5V
+imu 0x68 5v(LDO)
+mag 0x3D 5v(LDO)
+
+
+The default (factory) HMC5883L 8-bit slave address is 0x3C for write operations, or 0x3D for read operations.
+
+
+BMP180 basınç sensörü 5V (LDO ile) 0x77
+

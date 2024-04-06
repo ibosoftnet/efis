@@ -1,0 +1,5 @@
+# Editor directories and files
+
+# MCU Software/.vs
+MCU Software/libraries/ArduinoCore/Debug
+MCU Software/project/Debug
