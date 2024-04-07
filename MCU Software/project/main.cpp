@@ -66,19 +66,19 @@ bool imuStatusPrev;
 bool imuStatus = 0;
 static const int8_t imuAdress = 0x68; // Default
 static const uint8_t imuConfigReg = 0x1A;
-static const uint8_t imuConfigValue = 7 << 3 | 2 << 0; // 7 -, 6 -, 543 EXT_SYNC_SET[2:0], 210 DLPF_CFG[2:0]
+static const uint8_t imuConfigValue = 0 << 3 | 2 << 0; // 7 -, 6 -, 543 EXT_SYNC_SET[2:0], 210 DLPF_CFG[2:0]
 static const uint8_t imuSampleRateReg = 0x19;
 static const uint8_t imuSampleRateValue = 2; // Sample Rate = Gyroscope Output Rate / (1 + SMPLRT_DIV)
 static const uint8_t imuGyroDataStart = 0x43;
 static const uint8_t imuGyroConfigReg = 0x1B;
-static const uint8_t imuGyroConfigValue = 1 << 3; // 7 XG_ST, 6 YG_ST, 5 ZG_ST, 43 FS_SEL[1:0], 2 -, 1 -, 0 -;  1 = +-500dps = 1000
-static const float imuGyroFactor = 65.536; // 65536/1000
+static const uint8_t imuGyroConfigValue = 1 << 3; // 7 XG_ST, 6 YG_ST, 5 ZG_ST, 43 FS_SEL[1:0], 2 -, 1 -, 0 -;  1 = +-500dps
+static const float imuGyroFactor = 65.5; // 65.5 LSB/°/s
 static const uint8_t imuAccelDataStart = 0x3B;
 static const uint8_t imuAccelConfigReg = 0x1C;
-static const uint8_t imuAccelConfigValue = 2 << 3; // 7 XA_ST, 6 YA_ST, 5 ZA_ST, 43 AFS_SEL[1:0], 2 -, 1 -, 0 -;  2 = +-8g = 16
-static const float imuAccelFactor = 4096.0; // 65536/16 
+static const uint8_t imuAccelConfigValue = 2 << 3; // 7 XA_ST, 6 YA_ST, 5 ZA_ST, 43 AFS_SEL[1:0], 2 -, 1 -, 0 -;  2 = +-8g
+static const float imuAccelFactor = 4096.0; // 4096 LSB/g
 static const uint8_t imuPowerReg = 0x6B;
-static const uint8_t imuPowerValue = 0; // Wake up
+static const uint8_t imuPowerValue = 0b00001000; // 7 Device Reset, 6 Sleep, 5 Cycle, 4 -, 3 Temp Disable, 210 CLKSEL[2:0]; 0 = Internal 8MHz oscillator
 
 
 float imu_ax, imu_ay, imu_az, imu_gx, imu_gy, imu_gz;
