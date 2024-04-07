@@ -6,7 +6,6 @@
  * 
  */ 
 
-//#pragma GCC optimize ("O0")
 
 /* == Com ==*/
 #define SERIAL_BAUDRATE 230400 // Serial port baud rate
@@ -24,7 +23,7 @@
 int i;
 unsigned long timePrev;
 unsigned long timeNext;
-static const uint16_t loopInterval = 1000; // Loop interval in ms
+static const uint16_t loopInterval = 100; // Loop interval in ms
 uint16_t loopPrevElapsedTime = 0;
 
 /* == Constants == */
@@ -41,7 +40,7 @@ bool setMessageInProgress = false;
 char setReceivedChar;
 // Altimeter Setting
 //double set_altStg = constStdP;
-double set_altStg = 101200.0;
+double set_altStg = 100700.0;
 
 /* == Sensors == */
 // A/G sensing
@@ -78,6 +77,9 @@ static const uint8_t imuAccelDataStart = 0x3B;
 static const uint8_t imuAccelConfigReg = 0x1C;
 static const uint8_t imuAccelConfigValue = 2 << 3; // 7 XA_ST, 6 YA_ST, 5 ZA_ST, 43 AFS_SEL[1:0], 2 -, 1 -, 0 -;  2 = +-8g = 16
 static const float imuAccelFactor = 4096.0; // 65536/16 
+static const uint8_t imuPowerReg = 0x6B;
+static const uint8_t imuPowerValue = 0; // Wake up
+
 
 float imu_ax, imu_ay, imu_az, imu_gx, imu_gy, imu_gz;
 
@@ -116,7 +118,7 @@ static const float magzErr = 0.0;
 bool pressStatusPrev;
 bool pressStatus = 0;
 Adafruit_BMP085 bmp;
-static const uint8_t bmpOversampling = BMP085_HIGHRES; // BMP085_ULTRAHIGHRES, BMP085_HIGHRES, BMP085_STANDARD
+static const uint8_t bmpOversampling = BMP085_ULTRAHIGHRES; // BMP085_ULTRAHIGHRES, BMP085_HIGHRES, BMP085_STANDARD
 double press_press;
 
 // Diff
@@ -131,26 +133,32 @@ static const float diffPressPaErr = -4.0;
 
 /* == Derived Values == */
 // Pitch
-float der_pitch;
+float drv_pitch;
 // Roll
-float der_roll;
+float drv_roll;
+// Turn Rate
+float drv_turnRate;
 // SAT
-float der_SATC;
+float drv_SATC;
 // Pressure Alt ft
-float der_pressAltFt;
+float drvPrevPressAlt;
+float drv_pressAltFt;
+// Vertical Speed
+uint8_t drvBaroVspdLoopCount = 0;
+static const uint8_t drvBaroVspdLoopMeasureCount = 5;
+float drv_baroVspdFpm;
+float drvBaroVspdSumOfAltDiff;
+unsigned long drvBaroVspdTime = 0; // For millis
 // Indicated Alt ft
-float der_indAltFt;
+float drv_indAltFt;
 // KIAS
-bool der_kiasStatus;
-float der_kias;
+float drv_kias;
 // KTAS
-bool der_ktasStatus;
-float der_ktas;
+float drv_ktas;
 // Mach
-bool der_machStatus;
-float der_mach;
+float drv_mach;
 // KCAS
-float der_kcas;
+float drv_kcas;
 
 /* == Functions == */
 void readSettings();
@@ -269,29 +277,38 @@ void loop() {
 	
 	/* Derived Values */
 	// Pitch
-	der_pitch = atan2(imu_az, imu_ay) * 180.0 / M_PI;
+	drv_pitch = atan2(imu_az, imu_ay) * 180.0 / M_PI;
 	// Roll
-	der_roll = atan2(imu_ax, imu_ay) * 180.0 / M_PI;
+	drv_roll = atan2(imu_ax, imu_ay) * 180.0 / M_PI;
+	// Turn Rate
+	drv_turnRate = imu_gy - drv_roll * cos(drv_roll);
 	// SAT
-	der_SATC = temp_TATC; // su anlik donusum faktoru yok.
+	drv_SATC = temp_TATC; // su anlik donusum faktoru yok.
 	// Pressure ALT ft
-	der_pressAltFt = 145439.632767 * (1.0 - pow(press_press / constStdP, 0.1903));
+	drvPrevPressAlt = drv_pressAltFt;
+	drv_pressAltFt = 145439.632767 * (1.0 - pow(press_press / constStdP, 0.1903));
+	// Vertical Speed
+	drvBaroVspdLoopCount++;
+	drvBaroVspdSumOfAltDiff =+ (drv_pressAltFt - drvPrevPressAlt);
+	if (drvBaroVspdLoopCount == drvBaroVspdLoopMeasureCount) {
+		drv_baroVspdFpm = 60000.0 * (drvBaroVspdSumOfAltDiff/(float)drvBaroVspdLoopMeasureCount) / (float)(millis() - drvBaroVspdTime);
+		drvBaroVspdTime = millis();
+		drvBaroVspdLoopCount = 0;
+		drvBaroVspdSumOfAltDiff = 0.0;
+	}
 	// Indicated ALT ft
-	der_indAltFt = 145439.632767 * (1.0 - pow(press_press / set_altStg, 0.1903));
+	drv_indAltFt = 145439.632767 * (1.0 - pow(press_press / set_altStg, 0.1903));
 	// KIAS
-	der_kiasStatus = pressStatus & diffStatus;
-	der_kias = 1.943845249221964 * sqrt( ((2*constYAir*press_press)/((constYAir-1)*constStdAirD)) * ( pow( (press_press+diff_pressPa)/press_press, (constYAir-1.0)/constYAir ) - 1.0) );
-	if (isnan(der_kias)) {der_kias=0;} // If result of sqrt is nan, set 0 to result
-	// KTAS
-	der_ktasStatus = pressStatus & diffStatus;
-	der_ktas = 1.943845249221964 * sqrt( (2*diff_pressPa*constStdAirD) / sqrt( pow( (press_press/(constR*(der_SATC+constKMinusC))), 2 ) ) );
-	if (isnan(der_ktas)) {der_ktas=0;} // If result of sqrt is nan, set 0 to result
-	// Mach
-	der_machStatus = pressStatus & diffStatus;
-	der_mach = sqrt( (2/(constYAir-1)) * ( pow( (diff_pressPa/press_press)+1.0, (constYAir-1.0)/constYAir ) - 1.0) );
-	if (isnan(der_mach)) {der_mach=0;} // If result of sqrt is nan, set 0 to result
+	drv_kias = 1.943845249221964 * sqrt( ((2*constYAir*press_press)/((constYAir-1)*constStdAirD)) * ( pow( (press_press+diff_pressPa)/press_press, (constYAir-1.0)/constYAir ) - 1.0) );
+	if (isnan(drv_kias)) {drv_kias=0;} // If result of sqrt is nan, set 0 to result
 	// KCAS
-	der_kcas = der_kias; // su anlik donusum faktoru yok.
+	drv_kcas = drv_kias; // su anlik donusum faktoru yok.
+	// KTAS
+	drv_ktas = 1.943845249221964 * sqrt( (2*diff_pressPa*constStdAirD) / sqrt( pow( (press_press/(constR*(drv_SATC+constKMinusC))), 2 ) ) );
+	if (isnan(drv_ktas)) {drv_ktas=0;} // If result of sqrt is nan, set 0 to result
+	// Mach
+	drv_mach = sqrt( (2/(constYAir-1)) * ( pow( (diff_pressPa/press_press)+1.0, (constYAir-1.0)/constYAir ) - 1.0) );
+	if (isnan(drv_mach)) {drv_mach=0;} // If result of sqrt is nan, set 0 to result
 	
 	
 	
@@ -306,15 +323,15 @@ void loop() {
 	Serial.print("$ag_onGnd2="); Serial.println(ag_onGnd2);
 	Serial.print("$ag_onGnd3="); Serial.println(ag_onGnd3);
 	
-	// AOA
+	// AOA (deg)
 	Serial.print("$aoa_minAngle="); Serial.println(aoa_minAngle);
 	Serial.print("$aoa_maxAngle="); Serial.println(aoa_maxAngle);
 	Serial.print("$aoa_angle="); Serial.println(aoa_angle);
 	
-	// Temp
+	// Temp (celsius)
 	Serial.print("$temp_TATC="); Serial.println(temp_TATC);
 	
-	// IMU
+	// IMU (g & dps)
 	Serial.print("*imuStatus="); Serial.println(imuStatus);
 	Serial.print("$imu_ax="); Serial.println(imu_ax);
 	Serial.print("$imu_ay="); Serial.println(imu_ay);
@@ -323,38 +340,41 @@ void loop() {
 	Serial.print("$imu_gy="); Serial.println(imu_gy);
 	Serial.print("$imu_gz="); Serial.println(imu_gz);
 	
-	// Mag
+	// Mag (deg)
 	Serial.print("*magStatus="); Serial.println(magStatus);
 	Serial.print("$mag_hdg="); Serial.println(mag_hdg);
 	
-	// Press
+	// Press (Pa)
 	Serial.print("*pressStatus="); Serial.println(pressStatus);
 	Serial.print("$press_press="); Serial.println(press_press, 1);
 	
-	// Diff
+	// Diff (Pa)
 	Serial.print("*diffStatus="); Serial.println(diffStatus);
 	Serial.print("$diff_pressPa="); Serial.println(diff_pressPa);
 	
 	/* Derived Values */
-	// Pitch
-	Serial.print("*der_pitch="); Serial.println(der_pitch);
-	// Roll
-	Serial.print("*der_roll="); Serial.println(der_roll);
-	// SAT
-	Serial.print("*der_SATC="); Serial.println(der_SATC);
-	// Preessure Alt ft
-	Serial.print("*der_pressAltFt="); Serial.println(der_pressAltFt);
-	// Indicated Alt ft
-	Serial.print("*der_indAltFt="); Serial.println(der_indAltFt);
-	// KIAS
-	Serial.print("*der_kiasStatus="); Serial.println(der_kiasStatus);
-	Serial.print("$der_kias="); Serial.println(der_kias);
-	// KTAS
-	Serial.print("*der_ktasStatus="); Serial.println(der_ktasStatus);
-	Serial.print("$der_ktas="); Serial.println(der_ktas);
+	// Pitch (deg)
+	Serial.print("*drv_pitch="); Serial.println(drv_pitch);
+	// Roll (deg)
+	Serial.print("*drv_roll="); Serial.println(drv_roll);
+	// Turn Rate (dps)
+	Serial.print("*drv_turnRate="); Serial.println(drv_turnRate);
+	// SAT (celsius)
+	Serial.print("*drv_SATC="); Serial.println(drv_SATC);
+	// Preessure Alt (ft)
+	Serial.print("*drv_pressAltFt="); Serial.println(drv_pressAltFt);
+	// Indicated Alt (ft)
+	Serial.print("*drv_indAltFt="); Serial.println(drv_indAltFt);
+	// Vertical Speed (fpm)
+	Serial.print("*drv_baroVspdFpm="); Serial.println(drv_baroVspdFpm);
+	// KIAS (kts)
+	Serial.print("$drv_kias="); Serial.println(drv_kias);
+	// KCAS (kts)
+	Serial.print("$drv_kcas="); Serial.println(drv_kcas);
+	// KTAS (kts)
+	Serial.print("$drv_ktas="); Serial.println(drv_ktas);
 	// Mach
-	Serial.print("*der_machStatus="); Serial.println(der_machStatus);
-	Serial.print("$der_mach="); Serial.println(der_mach, 4);
+	Serial.print("$drv_mach="); Serial.println(drv_mach, 4);
 	
 	// End of message
 	Serial.println('+');
@@ -391,6 +411,11 @@ void imuInit() {
 	Wire.beginTransmission(imuAdress);
 	Wire.write(imuGyroConfigReg);
 	Wire.write(imuGyroConfigValue);
+	Wire.endTransmission(true);
+	
+	Wire.beginTransmission(imuAdress);
+	Wire.write(imuPowerReg);
+	Wire.write(imuPowerValue);
 	Wire.endTransmission(true);
 }
 
