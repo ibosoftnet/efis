@@ -8,7 +8,7 @@
 
 
 /* == Com ==*/
-#define SERIAL_BAUDRATE 230400 // Serial port baud rate
+#define SERIAL_BAUDRATE 115200 // Serial port baud rate
 #define I2C_CLOCK 400000 // I2C clock in Hz
 
 /* == Includes == */
@@ -27,20 +27,23 @@ static const uint16_t loopInterval = 100; // Loop interval in ms
 uint16_t loopPrevElapsedTime = 0;
 
 /* == Constants == */
-static const double constStdP = 101325.000;		// pascal, ref: ICAO Doc 7488/3
-static const float constStdAirD = 1.22500;		// kg/m^3, ref: ICAO Doc 7488/3
-static const float constR = 287.05;				// J/(kg*K)
-static const float constKMinusC =  273.15;
-static const float constStdTC = 15.000;			// celsius, ref: ICAO Doc 7488/3
-static const float constStdTK = 288.150;		// K, ref: ICAO Doc 7488/3
+static const double constStdP = 101325.0;		// pascal, ref: ICAO Doc 7488/3
+static const float constStdAirD = 1.225;		// kg/m^3, ref: ICAO Doc 7488/3
+static const float constR = 287.05287;			// J/(kg*K), ref: ICAO Doc 7488/3
+static const float constKMinusC =  273.15;		// ref: ICAO Doc 7488/3
+static const float constStdTC = 15.0;			// celsius, ref: ICAO Doc 7488/3
+static const float constStdTK = 288.15;			// K, ref: ICAO Doc 7488/3
 static const float constYAir = 1.401;			// specific heat capacity ratio for air
 
 /*   Settings   */
-bool setMessageInProgress = false;
-char setReceivedChar;
+static const uint8_t SETTINGS_BUFFER_SIZE = 128;
+char settingsBuffer[SETTINGS_BUFFER_SIZE];
+int settingsBufferIndex = 0;
+boolean newSettingsData = false;
 // Altimeter Setting
-//double set_altStg = constStdP;
-double set_altStg = 100700.0;
+bool set_altStd = 1;			// Altimeter STD setting
+double set_altStg = constStdP;	// Altimeter setting value, standart at first initialization
+
 
 /* == Sensors == */
 // A/G sensing
@@ -162,6 +165,7 @@ float drv_kcas;
 
 /* == Functions == */
 void readSettings();
+void processSettingsMessage();
 void imuInit();
 void imuCheck();
 void imuRead();
@@ -297,7 +301,11 @@ void loop() {
 		drvBaroVspdSumOfAltDiff = 0.0;
 	}
 	// Indicated ALT ft
-	drv_indAltFt = 145439.632767 * (1.0 - pow(press_press / set_altStg, 0.1903));
+	if (set_altStd == 1) {
+		drv_indAltFt = 145439.632767 * (1.0 - pow(press_press / constStdP, 0.1903));
+	} else {
+		drv_indAltFt = 145439.632767 * (1.0 - pow(press_press / set_altStg, 0.1903));
+	}
 	// KIAS
 	drv_kias = 1.943845249221964 * sqrt( ((2*constYAir*press_press)/((constYAir-1)*constStdAirD)) * ( pow( (press_press+diff_pressPa)/press_press, (constYAir-1.0)/constYAir ) - 1.0) );
 	if (isnan(drv_kias)) {drv_kias=0;} // If result of sqrt is nan, set 0 to result
@@ -316,65 +324,66 @@ void loop() {
 	Serial.print('#'); Serial.println(loopPrevElapsedTime);
 	
 	// Settings
-	Serial.print("!set_altStg="); Serial.println(set_altStg);
+	Serial.print("!asd="); Serial.println(set_altStd);
+	Serial.print("!ast="); Serial.println(set_altStg);
 	
 	// A/G sense
-	Serial.print("$ag_onGnd1="); Serial.println(ag_onGnd1);
-	Serial.print("$ag_onGnd2="); Serial.println(ag_onGnd2);
-	Serial.print("$ag_onGnd3="); Serial.println(ag_onGnd3);
+	Serial.print("$gn1="); Serial.println(ag_onGnd1);
+	Serial.print("$gn2="); Serial.println(ag_onGnd2);
+	Serial.print("$gn3="); Serial.println(ag_onGnd3);
 	
 	// AOA (deg)
-	Serial.print("$aoa_minAngle="); Serial.println(aoa_minAngle);
-	Serial.print("$aoa_maxAngle="); Serial.println(aoa_maxAngle);
-	Serial.print("$aoa_angle="); Serial.println(aoa_angle);
+	Serial.print("$amn="); Serial.println(aoa_minAngle);
+	Serial.print("$amx="); Serial.println(aoa_maxAngle);
+	Serial.print("$aoa="); Serial.println(aoa_angle);
 	
 	// Temp (celsius)
-	Serial.print("$temp_TATC="); Serial.println(temp_TATC);
+	Serial.print("$tat="); Serial.println(temp_TATC);
 	
 	// IMU (g & dps)
-	Serial.print("*imuStatus="); Serial.println(imuStatus);
-	Serial.print("$imu_ax="); Serial.println(imu_ax);
-	Serial.print("$imu_ay="); Serial.println(imu_ay);
-	Serial.print("$imu_az="); Serial.println(imu_az);
-	Serial.print("$imu_gx="); Serial.println(imu_gx);
-	Serial.print("$imu_gy="); Serial.println(imu_gy);
-	Serial.print("$imu_gz="); Serial.println(imu_gz);
+	Serial.print("%imu="); Serial.println(imuStatus);
+	Serial.print("$ax="); Serial.println(imu_ax);
+	Serial.print("$ay="); Serial.println(imu_ay);
+	Serial.print("$az="); Serial.println(imu_az);
+	Serial.print("$gx="); Serial.println(imu_gx);
+	Serial.print("$gy="); Serial.println(imu_gy);
+	Serial.print("$gz="); Serial.println(imu_gz);
 	
 	// Mag (deg)
-	Serial.print("*magStatus="); Serial.println(magStatus);
-	Serial.print("$mag_hdg="); Serial.println(mag_hdg);
+	Serial.print("%mag="); Serial.println(magStatus);
+	Serial.print("$mhd="); Serial.println(mag_hdg);
 	
 	// Press (Pa)
-	Serial.print("*pressStatus="); Serial.println(pressStatus);
-	Serial.print("$press_press="); Serial.println(press_press, 1);
+	Serial.print("%prs="); Serial.println(pressStatus);
+	Serial.print("$prs="); Serial.println(press_press, 1);
 	
 	// Diff (Pa)
-	Serial.print("*diffStatus="); Serial.println(diffStatus);
-	Serial.print("$diff_pressPa="); Serial.println(diff_pressPa);
+	Serial.print("%dif="); Serial.println(diffStatus);
+	Serial.print("$dif="); Serial.println(diff_pressPa);
 	
 	/* Derived Values */
 	// Pitch (deg)
-	Serial.print("*drv_pitch="); Serial.println(drv_pitch);
+	Serial.print("&pit="); Serial.println(drv_pitch);
 	// Roll (deg)
-	Serial.print("*drv_roll="); Serial.println(drv_roll);
+	Serial.print("&rol="); Serial.println(drv_roll);
 	// Turn Rate (dps)
-	Serial.print("*drv_turnRate="); Serial.println(drv_turnRate);
+	Serial.print("&trn="); Serial.println(drv_turnRate);
 	// SAT (celsius)
-	Serial.print("*drv_SATC="); Serial.println(drv_SATC);
+	Serial.print("&sat="); Serial.println(drv_SATC);
 	// Preessure Alt (ft)
-	Serial.print("*drv_pressAltFt="); Serial.println(drv_pressAltFt);
+	Serial.print("&plt="); Serial.println(drv_pressAltFt);
 	// Indicated Alt (ft)
-	Serial.print("*drv_indAltFt="); Serial.println(drv_indAltFt);
+	Serial.print("&ilt="); Serial.println(drv_indAltFt);
 	// Vertical Speed (fpm)
-	Serial.print("*drv_baroVspdFpm="); Serial.println(drv_baroVspdFpm);
+	Serial.print("&vsp="); Serial.println(drv_baroVspdFpm);
 	// KIAS (kts)
-	Serial.print("$drv_kias="); Serial.println(drv_kias);
+	Serial.print("&ias="); Serial.println(drv_kias);
 	// KCAS (kts)
-	Serial.print("$drv_kcas="); Serial.println(drv_kcas);
+	Serial.print("&cas="); Serial.println(drv_kcas);
 	// KTAS (kts)
-	Serial.print("$drv_ktas="); Serial.println(drv_ktas);
+	Serial.print("&tas="); Serial.println(drv_ktas);
 	// Mach
-	Serial.print("$drv_mach="); Serial.println(drv_mach, 4);
+	Serial.print("&mac="); Serial.println(drv_mach, 4);
 	
 	// End of message
 	Serial.println('+');
@@ -506,29 +515,51 @@ void magRead() {
 }
 
 void readSettings() {
-  if (Serial.available()) {													// Seri portta veri var mi kontrol et
-	  setReceivedChar = Serial.read();										// Bir karakter al
-	  if (setReceivedChar == '#') {											// Eger alinan karakter "#" ise
-		  setMessageInProgress = true;										// Mesaj alimi basladi
-		  /*} else if (setReceivedChar == '+') {							// Eger alinan karakter "+" ise
-		  setMessageInProgress = false;*/									// Mesaj alimi tamamlandi
-		  } else if (setMessageInProgress && setReceivedChar != '\n') {		// Eger mesaj alimi devam ediyorsa ve alinan karakter yeni satir karakteri degilse
-																			// Mesaj alimi sirasinda ise, karakterleri isle
-		  if (setReceivedChar == '!') {
-			  String setCommand = Serial.readStringUntil('=');
-			if (setCommand == "!set_altStg") {
-				  String setValueString = Serial.readStringUntil('\n');
-				  setValueString.trim();
-				  set_altStg = setValueString.toFloat();
-			} /* else if (command == "!set_another_variable") {
-				  String valueString = Serial.readStringUntil('\n');
-				  valueString.trim();
-				  set_another_variable = valueString.toFloat();
-			} */
-			  // Diger komutlar icin benzer kontrolleri buraya ekleyebilirsiniz
-		  }
-	  }
-  }
+	if (Serial.available()) {								// Seri portta veri var mý kontrol ediliyor
+		char c = Serial.read();								// Bir karakter okunuyor
 
+		if (c == '#') {										// Yeni bir mesajýn baþlangýcý kontrol ediliyor
+			settingsBufferIndex = 0;						// Buffer sýfýrlanýyor
+			newSettingsData = false;						// Yeni veri geldiði belirtiliyor
+			} else if (c == '+') {							// Mesajýn sonu kontrol ediliyor
+			settingsBuffer[settingsBufferIndex] = '\0';		// String sonlandýrýlýyor
+			processSettingsMessage();						// Mesaj iþleniyor
+			newSettingsData = true;							// Yeni veri geldiði belirtiliyor
+			} else {										// Mesajýn içeriði okunuyor
+			settingsBuffer[settingsBufferIndex] = c;		// Karakter buffer'a ekleniyor
+			settingsBufferIndex = (settingsBufferIndex + 1) % SETTINGS_BUFFER_SIZE; // Buffer indeksi güncelleniyor
+		}
+	}
+
+	// Yeni veri geldiyse, iþleme alýndýktan sonra buffer temizleniyor
+	if (newSettingsData) {
+		settingsBufferIndex = 0;
+		newSettingsData = false;
+	}
 }
+
+void processSettingsMessage() {
+	// Gelen veriyi iþleme
+	char *token = strtok(settingsBuffer, "!");			// "!" karakterine göre veriyi parçalýyoruz
+
+	while (token != NULL) {
+		if (strstr(token, "asd=") != NULL) {			// "set_altStd=" içeren kýsýmlarý kontrol ediyoruz
+			char *value = strchr(token, '=') + 1;		// "=" karakterinin hemen sonrasýndaki deðeri alýyoruz
+			set_altStd = atoi(value);					// Ayar deðerini boolean olarak almak için atoi fonksiyonunu kullanýyoruz
+		} else if (strstr(token, "atg=") != NULL) {		// "set_altStg=" içeren kýsýmlarý kontrol ediyoruz
+			char *value = strchr(token, '=') + 1;		// "=" karakterinin hemen sonrasýndaki deðeri alýyoruz
+			set_altStg = atof(value);					// Ayar deðerini double olarak almak için atof fonksiyonunu kullanýyoruz
+		}
+
+		token = strtok(NULL, "!");						// Sonraki tokena geçiyoruz
+	}
+}
+
+
+
+
+
+
+
+
 
