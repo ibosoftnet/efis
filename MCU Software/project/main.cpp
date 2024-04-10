@@ -71,7 +71,7 @@ static const int8_t imuAdress = 0x68; // Default
 static const uint8_t imuConfigReg = 0x1A;
 static const uint8_t imuConfigValue = 0 << 3 | 2 << 0; // 7 -, 6 -, 543 EXT_SYNC_SET[2:0], 210 DLPF_CFG[2:0]
 static const uint8_t imuSampleRateReg = 0x19;
-static const uint8_t imuSampleRateValue = 2; // Sample Rate = Gyroscope Output Rate / (1 + SMPLRT_DIV)
+static const uint8_t imuSampleRateValue = 3; // Sample Rate = Gyroscope Output Rate / (1 + SMPLRT_DIV)
 static const uint8_t imuGyroDataStart = 0x43;
 static const uint8_t imuGyroConfigReg = 0x1B;
 static const uint8_t imuGyroConfigValue = 1 << 3; // 7 XG_ST, 6 YG_ST, 5 ZG_ST, 43 FS_SEL[1:0], 2 -, 1 -, 0 -;  1 = +-500dps
@@ -100,7 +100,7 @@ static const int8_t magAdress = 0x0D;		// QMC5883
 static const uint8_t magControlReg = 0x09;	// Mode Control Register
 static const uint8_t magControlValue = 
 0b00000001 | // Mode_Standby 0b00000000, Mode_Continuous 0b00000001
-0b00000000 | // 10 Hz 0b00000000, 50 Hz 0b00000100, 100 Hz 0b00001000, 200 Hz 0b00001100
+0b00001000 | // 10 Hz 0b00000000, 50 Hz 0b00000100, 100 Hz 0b00001000, 200 Hz 0b00001100
 0b00010000 | // 2G 0b00000000, 8G 0b00010000
 0b00000000 ; // 64 0b11000000, 128 0b10000000, 256 0b01000000, 512 0b00000000
 static const uint8_t magSRReg = 0x0B;		// Define Set/Reset period
@@ -281,11 +281,11 @@ void loop() {
 	
 	/* Derived Values */
 	// Pitch
-	drv_pitch = atan2(imu_az, imu_ay) * 180.0 / M_PI;
+	drv_pitch = atan2(imu_az, imu_ay) * 57.2957795131; // PI/180=57.2957795131
 	// Roll
-	drv_roll = atan2(imu_ax, imu_ay) * 180.0 / M_PI;
+	drv_roll = atan2(imu_ax, imu_ay) * 57.2957795131; // PI/180=57.2957795131
 	// Turn Rate
-	drv_turnRate = imu_gy - drv_roll * cos(drv_roll);
+	drv_turnRate = -imu_gy / cos(drv_roll);
 	// SAT
 	drv_SATC = temp_TATC; // su anlik donusum faktoru yok.
 	// Pressure ALT ft
@@ -441,6 +441,7 @@ void imuRead() {
 	Wire.endTransmission(false);
 	Wire.requestFrom(imuAdress,6,true);
 	
+	// Data sequence is H-L-H-L-H-L so (Wire.read() << 8 | Wire.read())
 	imu_ax = (Wire.read() << 8 | Wire.read()) / imuAccelFactor + imuAccelxErr;
 	imu_ay = (Wire.read() << 8 | Wire.read()) / imuAccelFactor + imuAccelyErr;
 	imu_az = (Wire.read() << 8 | Wire.read()) / imuAccelFactor + imuAccelzErr;
@@ -450,6 +451,7 @@ void imuRead() {
 	Wire.endTransmission(false);
 	Wire.requestFrom(imuAdress,6,true);
 	
+	// Data sequence is H-L-H-L-H-L so (Wire.read() << 8 | Wire.read())
 	imu_gx = ((Wire.read() << 8 | Wire.read()) / imuGyroFactor) + imuGyroxErr;
 	imu_gy = ((Wire.read() << 8 | Wire.read()) / imuGyroFactor) + imuGyroyErr;
 	imu_gz = ((Wire.read() << 8 | Wire.read()) / imuGyroFactor) + imuGyrozErr;
@@ -493,11 +495,13 @@ void magRead() {
 		
 		Wire.requestFrom(magAdress, 6);
 		if (6 <= Wire.available()) {
-			magx = (Wire.read() << 8 | Wire.read()) + magxErr;
-			magz = (Wire.read() << 8 | Wire.read()) + magzErr;
-			magy = (Wire.read() << 8 | Wire.read()) + magyErr;
+			// Data sequence is L-H-L-H-L-H so (Wire.read() | (Wire.read() << 8))
+			magx = (Wire.read() | (Wire.read() << 8)) + magxErr;
+			magy = (Wire.read() | (Wire.read() << 8)) + magyErr;
+			magz = (Wire.read() | (Wire.read() << 8)) + magzErr;
 		}
-		mag_hdg = atan2(magz, magx) * 180 / M_PI;
+
+		mag_hdg = 180 - atan2(magz, magx) * 57.2957795131; // PI/180=57.2957795131
 		
 	} else {
 		_delay_ms(magRetryInterval);
