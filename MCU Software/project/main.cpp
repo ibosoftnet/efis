@@ -75,7 +75,7 @@ static const uint8_t imuSampleRateValue = 2; // Sample Rate = Gyroscope Output R
 static const uint8_t imuGyroDataStart = 0x43;
 static const uint8_t imuGyroConfigReg = 0x1B;
 static const uint8_t imuGyroConfigValue = 1 << 3; // 7 XG_ST, 6 YG_ST, 5 ZG_ST, 43 FS_SEL[1:0], 2 -, 1 -, 0 -;  1 = +-500dps
-static const float imuGyroFactor = 65.5; // 65.5 LSB/°/s
+static const float imuGyroFactor = 65.5; // 65.5 LSB/Â°/s
 static const uint8_t imuAccelDataStart = 0x3B;
 static const uint8_t imuAccelConfigReg = 0x1C;
 static const uint8_t imuAccelConfigValue = 2 << 3; // 7 XA_ST, 6 YA_ST, 5 ZA_ST, 43 AFS_SEL[1:0], 2 -, 1 -, 0 -;  2 = +-8g
@@ -446,7 +446,7 @@ void imuRead() {
 	imu_az = (Wire.read() << 8 | Wire.read()) / imuAccelFactor + imuAccelzErr;
 	
 	Wire.beginTransmission(imuAdress);
-	Wire.write(imuAccelDataStart);
+	Wire.write(imuGyroDataStart);
 	Wire.endTransmission(false);
 	Wire.requestFrom(imuAdress,6,true);
 	
@@ -497,11 +497,8 @@ void magRead() {
 			magz = (Wire.read() << 8 | Wire.read()) + magzErr;
 			magy = (Wire.read() << 8 | Wire.read()) + magyErr;
 		}
-		mag_hdg = atan2(magz, magx) * 180 / PI;
-		if (mag_hdg < 0) {
-			mag_hdg += 360;
-		}
-
+		mag_hdg = atan2(magz, magx) * 180 / M_PI;
+		
 	} else {
 		_delay_ms(magRetryInterval);
 		Wire.requestFrom(magAdress, 1);
@@ -515,23 +512,23 @@ void magRead() {
 }
 
 void readSettings() {
-	if (Serial.available()) {								// Seri portta veri var mý kontrol ediliyor
+	if (Serial.available()) {								// Seri portta veri var mÃ½ kontrol ediliyor
 		char c = Serial.read();								// Bir karakter okunuyor
 
-		if (c == '#') {										// Yeni bir mesajýn baþlangýcý kontrol ediliyor
-			settingsBufferIndex = 0;						// Buffer sýfýrlanýyor
-			newSettingsData = false;						// Yeni veri geldiði belirtiliyor
-			} else if (c == '+') {							// Mesajýn sonu kontrol ediliyor
-			settingsBuffer[settingsBufferIndex] = '\0';		// String sonlandýrýlýyor
-			processSettingsMessage();						// Mesaj iþleniyor
-			newSettingsData = true;							// Yeni veri geldiði belirtiliyor
-			} else {										// Mesajýn içeriði okunuyor
+		if (c == '#') {										// Yeni bir mesajÃ½n baÃ¾langÃ½cÃ½ kontrol ediliyor
+			settingsBufferIndex = 0;						// Buffer sÃ½fÃ½rlanÃ½yor
+			newSettingsData = false;						// Yeni veri geldiÃ°i belirtiliyor
+			} else if (c == '+') {							// MesajÃ½n sonu kontrol ediliyor
+			settingsBuffer[settingsBufferIndex] = '\0';		// String sonlandÃ½rÃ½lÃ½yor
+			processSettingsMessage();						// Mesaj iÃ¾leniyor
+			newSettingsData = true;							// Yeni veri geldiÃ°i belirtiliyor
+			} else {										// MesajÃ½n iÃ§eriÃ°i okunuyor
 			settingsBuffer[settingsBufferIndex] = c;		// Karakter buffer'a ekleniyor
-			settingsBufferIndex = (settingsBufferIndex + 1) % SETTINGS_BUFFER_SIZE; // Buffer indeksi güncelleniyor
+			settingsBufferIndex = (settingsBufferIndex + 1) % SETTINGS_BUFFER_SIZE; // Buffer indeksi gÃ¼ncelleniyor
 		}
 	}
 
-	// Yeni veri geldiyse, iþleme alýndýktan sonra buffer temizleniyor
+	// Yeni veri geldiyse, iÃ¾leme alÃ½ndÃ½ktan sonra buffer temizleniyor
 	if (newSettingsData) {
 		settingsBufferIndex = 0;
 		newSettingsData = false;
@@ -539,19 +536,19 @@ void readSettings() {
 }
 
 void processSettingsMessage() {
-	// Gelen veriyi iþleme
-	char *token = strtok(settingsBuffer, "!");			// "!" karakterine göre veriyi parçalýyoruz
+	// Gelen veriyi iÃ¾leme
+	char *token = strtok(settingsBuffer, "!");			// "!" karakterine gÃ¶re veriyi parÃ§alÃ½yoruz
 
 	while (token != NULL) {
-		if (strstr(token, "asd=") != NULL) {			// "set_altStd=" içeren kýsýmlarý kontrol ediyoruz
-			char *value = strchr(token, '=') + 1;		// "=" karakterinin hemen sonrasýndaki deðeri alýyoruz
-			set_altStd = atoi(value);					// Ayar deðerini boolean olarak almak için atoi fonksiyonunu kullanýyoruz
-		} else if (strstr(token, "atg=") != NULL) {		// "set_altStg=" içeren kýsýmlarý kontrol ediyoruz
-			char *value = strchr(token, '=') + 1;		// "=" karakterinin hemen sonrasýndaki deðeri alýyoruz
-			set_altStg = atof(value);					// Ayar deðerini double olarak almak için atof fonksiyonunu kullanýyoruz
+		if (strstr(token, "asd=") != NULL) {			// "set_altStd=" iÃ§eren kÃ½sÃ½mlarÃ½ kontrol ediyoruz
+			char *value = strchr(token, '=') + 1;		// "=" karakterinin hemen sonrasÃ½ndaki deÃ°eri alÃ½yoruz
+			set_altStd = atoi(value);					// Ayar deÃ°erini boolean olarak almak iÃ§in atoi fonksiyonunu kullanÃ½yoruz
+		} else if (strstr(token, "atg=") != NULL) {		// "set_altStg=" iÃ§eren kÃ½sÃ½mlarÃ½ kontrol ediyoruz
+			char *value = strchr(token, '=') + 1;		// "=" karakterinin hemen sonrasÃ½ndaki deÃ°eri alÃ½yoruz
+			set_altStg = atof(value);					// Ayar deÃ°erini double olarak almak iÃ§in atof fonksiyonunu kullanÃ½yoruz
 		}
 
-		token = strtok(NULL, "!");						// Sonraki tokena geçiyoruz
+		token = strtok(NULL, "!");						// Sonraki tokena geÃ§iyoruz
 	}
 }
 
