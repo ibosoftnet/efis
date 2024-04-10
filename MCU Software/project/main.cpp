@@ -29,11 +29,17 @@ uint16_t loopPrevElapsedTime = 0;
 /* == Constants == */
 static const double constStdP = 101325.0;		// pascal, ref: ICAO Doc 7488/3
 static const float constStdAirD = 1.225;		// kg/m^3, ref: ICAO Doc 7488/3
-static const float constR = 287.05287;			// J/(kg*K), ref: ICAO Doc 7488/3
+static const float constR = 287.05287;			// J/(kg*K), specific gas constant, ref: ICAO Doc 7488/3
+static const float constRun = 8.31432;			// J/(K*kmol), universal gas constant, derived from ICAO Doc 7488/3
 static const float constKMinusC =  273.15;		// ref: ICAO Doc 7488/3
-static const float constStdTC = 15.0;			// celsius, ref: ICAO Doc 7488/3
-static const float constStdTK = 288.15;			// K, ref: ICAO Doc 7488/3
+//static const float constt0 = 15.0;			// celsius, ref: ICAO Doc 7488/3
+static const float constT0 = 288.15;			// K, ref: ICAO Doc 7488/3
+static const float constg0 = 9.80665;			// m/s^2, ref: ICAO Doc 7488/3
+static const float constM0 = 0.02896442;		// kg/mol, derived from ICAO Doc 7488/3
+static const float constLb = -0.0065;			// K/m, std lapse rate, derived from ICAO Doc 7488/3, (0-11000m)
 static const float constYAir = 1.401;			// specific heat capacity ratio for air
+static const float constmtoft = 3.2808399;
+
 
 /*   Settings   */
 static const uint8_t SETTINGS_BUFFER_SIZE = 128;
@@ -290,7 +296,7 @@ void loop() {
 	drv_SATC = temp_TATC; // su anlik donusum faktoru yok.
 	// Pressure ALT ft
 	drvPrevPressAlt = drv_pressAltFt;
-	drv_pressAltFt = 145439.632767 * (1.0 - pow(press_press / constStdP, 0.1903));
+	drv_pressAltFt = (constT0/constLb)*( pow(press_press/constStdP, (-constRun*constLb)/(constg0*constM0)) - 1.0 ) * constmtoft;
 	// Vertical Speed
 	drvBaroVspdLoopCount++;
 	drvBaroVspdSumOfAltDiff =+ (drv_pressAltFt - drvPrevPressAlt);
@@ -302,9 +308,9 @@ void loop() {
 	}
 	// Indicated ALT ft
 	if (set_altStd == 1) {
-		drv_indAltFt = 145439.632767 * (1.0 - pow(press_press / constStdP, 0.1903));
+		drv_indAltFt = drv_pressAltFt;
 	} else {
-		drv_indAltFt = 145439.632767 * (1.0 - pow(press_press / set_altStg, 0.1903));
+		drv_indAltFt = (constT0/constLb)*( pow(press_press/set_altStg, (-constRun*constLb)/(constg0*constM0)) - 1.0 ) * constmtoft;
 	}
 	// KIAS
 	drv_kias = 1.943845249221964 * sqrt( ((2*constYAir*press_press)/((constYAir-1)*constStdAirD)) * ( pow( (press_press+diff_pressPa)/press_press, (constYAir-1.0)/constYAir ) - 1.0) );
