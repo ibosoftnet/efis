@@ -339,8 +339,8 @@ void loop() {
 	Serial.print("$gn3="); Serial.println(ag_onGnd3);
 	
 	// AOA (deg)
-	Serial.print("$amn="); Serial.println(aoa_minAngle);
-	Serial.print("$amx="); Serial.println(aoa_maxAngle);
+	//Serial.print("$amn="); Serial.println(aoa_minAngle);
+	//Serial.print("$amx="); Serial.println(aoa_maxAngle);
 	Serial.print("$aoa="); Serial.println(aoa_angle);
 	
 	// Temp (celsius)
