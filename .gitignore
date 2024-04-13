@@ -1,4 +1,8 @@
 # Editor directories and files
+.git
+
+# Google Drive
+.tmp.driveupload
 
 # MCU Software/.vs
 MCU Software/libraries/ArduinoCore/Debug
