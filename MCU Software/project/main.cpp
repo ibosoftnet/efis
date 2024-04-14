@@ -5,17 +5,17 @@
  * Author: Caglar
  */ 
 
+/* == Variables Header File == */
+#include "variables.h"
 
 /* == Includes == */
 #include <avr/io.h>
 #include <util/delay.h>
 #include "arduino.h"
 #include "Wire.h"
+#include "virtuabotixRTC.h"
 #include "Adafruit_BMP085.h"
 #include "ms4525do.h"
-
-/* == Variables Header File == */
-#include "variables.h"
 
 /* == Functions == */
 void readSettings();
@@ -28,6 +28,9 @@ void magCheck();
 void magRead();
 void diffCheck();
 void diffRead();
+
+/* == Others == */
+virtuabotixRTC RTC(RtcSclkPin, RtcIoPin, RtcCePin); // RTC
 
 // ############################################################################################# //
 
@@ -47,7 +50,7 @@ void setup() {
 	Wire.setClock(I2C_CLOCK);
 	
 	// ADC
-	ADMUX = 0b01000000;			// 7,6 > REFS[1:0], 00 = AREF, 01 = AVcc + cap at AREF, 10 = reserved, 11 = int 1.1V ref + cap at AREF; 5 ADLAR, 1 = Align Left (ADC H), 0 = Align Right (ADC L) ; 4 none; 3,2,1,0 > MUX
+	ADMUX = 0b01000000;		// 7,6 > REFS[1:0], 00 = AREF, 01 = AVcc + cap at AREF, 10 = reserved, 11 = int 1.1V ref + cap at AREF; 5 ADLAR, 1 = Align Left (ADC H), 0 = Align Right (ADC L) ; 4 none; 3,2,1,0 > MUX
 	ADCSRA = 0b10000111;
 	
 	/* Initialization */
@@ -73,7 +76,7 @@ void setup() {
 	//_delay_ms(1);
 	
 	// Delay after initialization
-	Serial.print("Initialization Ok!");
+	Serial.println("Initialization Ok!");
 	_delay_ms(1000);
 }
 
@@ -171,11 +174,35 @@ void loop() {
 	// Mach
 	drv_mach = sqrt( (2/(constYAir-1)) * ( pow( (diff_pressPa/press_press)+1.0, (constYAir-1.0)/constYAir ) - 1.0) );
 	if (isnan(drv_mach)) {drv_mach=0;} // If result of sqrt is nan, set 0 to result
+		
+	// RTC
+	if (set_RtcMessageStatus == 1) {
+		sscanf(set_RtcTimeMessage, "%u-%u-%uT%u:%u:%uZ", &RtcSetYear, &RtcSetMonth, &RtcSetDay, &RtcSedHr, &RtcSetMin, &RtcSetSec);
+		RTC.setDS1302Time(RtcSetSec, RtcSetMin, RtcSedHr, 0, RtcSetDay, RtcSetMonth, RtcSetYear);
+		set_RtcMessageStatus =0;
+	}
 	
+	RTC.updateTime(); 
 	
-	
+
 	/* Print */
 	Serial.print('#'); Serial.println(loopPrevElapsedTime);
+	
+	// RTC (ISO 8601 Date and time in UTC)
+	Serial.print('%'); // Indicates head of the data (not realated to ISO standart)
+	Serial.print(RTC.year);
+	Serial.print('-');
+	if (RTC.month < 10) {Serial.print('0');} Serial.print(RTC.month);
+	Serial.print('-');
+	if (RTC.dayofmonth < 10) {Serial.print('0');} Serial.print(RTC.dayofmonth);
+	Serial.print('T');
+	if (RTC.hours < 10) {Serial.print('0');} Serial.print(RTC.hours);
+	Serial.print(':');
+	if (RTC.minutes < 10) {Serial.print('0');} Serial.print(RTC.minutes);
+	Serial.print(':');
+	if (RTC.seconds < 10) {Serial.print('0');} Serial.print(RTC.seconds);
+	Serial.println('Z');
+
 	
 	// Settings
 	Serial.print("!asd="); Serial.println(set_altStd);
@@ -404,17 +431,12 @@ void processSettingsMessage() {
 		} else if (strstr(token, "atg=") != NULL) {		// "set_altStg=" içeren kýsýmlarý kontrol ediyoruz
 			char *value = strchr(token, '=') + 1;		// "=" karakterinin hemen sonrasýndaki deðeri alýyoruz
 			set_altStg = atof(value);					// Ayar deðerini double olarak almak için atof fonksiyonunu kullanýyoruz
+		} else if (strstr(token, "clk") != NULL) {		// "!clk" ile başlayan kısmı kontrol ediyoruz
+			set_RtcMessageStatus = 1;					// Yeni mesaj geldiğini belirt
+			char *value = strchr(token, '=') + 1;		// "=" karakterinin hemen sonrasındaki değeri alıyoruz
+			strcpy(set_RtcTimeMessage, value);			// Zamanı RtcTimeMessage değişkenine kopyalıyoruz
 		}
 
 		token = strtok(NULL, "!");						// Sonraki tokena geçiyoruz
 	}
 }
-
-
-
-
-
-
-
-
-

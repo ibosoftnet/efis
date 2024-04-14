@@ -13,10 +13,15 @@
 #include "Adafruit_BMP085.h"
 #include "ms4525do.h"
 
-
-/* == Com ==*/
+/* == Com == */
 #define SERIAL_BAUDRATE 115200 // Serial port baud rate
 #define I2C_CLOCK 400000 // I2C clock in Hz
+
+/* == RTC == */
+static const uint8_t RtcCePin = 7;		// DS1302 Chip Enable
+static const uint8_t RtcIoPin = 6;		// DS1302 Serial Data
+static const uint8_t RtcSclkPin = 5;	// DS1302 Clock
+uint16_t RtcSetSec=0, RtcSetMin=0, RtcSedHr=0, RtcSetDay=1, RtcSetMonth=1, RtcSetYear=2000;
 
 /* == General Variables == */
 int i;
@@ -45,6 +50,9 @@ static const uint8_t SETTINGS_BUFFER_SIZE = 128;
 char settingsBuffer[SETTINGS_BUFFER_SIZE];
 int settingsBufferIndex = 0;
 boolean newSettingsData = false;
+// RTC
+boolean set_RtcMessageStatus = 0;
+char set_RtcTimeMessage[] = "2000-01-01T00:00:00Z";
 // Altimeter Setting
 boolean set_altStd = 1;			// Altimeter STD setting
 double set_altStg = constStdP;	// Altimeter setting value, standart at first initialization

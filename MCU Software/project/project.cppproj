@@ -30,15 +30,15 @@
     <EraseKey />
     <AsfFrameworkConfig>
       <framework-data>
-  <options />
-  <configurations />
-  <files />
-  <documentation help="" />
-  <offline-documentation help="" />
-  <dependencies>
-    <content-extension eid="atmel.asf" uuidref="Atmel.ASF" version="3.44.1" />
-  </dependencies>
-</framework-data>
+        <options />
+        <configurations />
+        <files />
+        <documentation help="" />
+        <offline-documentation help="" />
+        <dependencies>
+          <content-extension eid="atmel.asf" uuidref="Atmel.ASF" version="3.44.1" />
+        </dependencies>
+      </framework-data>
     </AsfFrameworkConfig>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)' == 'Release' ">
@@ -122,6 +122,7 @@
             <Value>../lib/BMP180</Value>
             <Value>../lib/BusIO</Value>
             <Value>../lib/MS4525</Value>
+            <Value>../lib/DS1302</Value>
           </ListValues>
         </avrgcc.compiler.directories.IncludePaths>
         <avrgcc.compiler.optimization.level>Optimize debugging experience (-Og)</avrgcc.compiler.optimization.level>
@@ -147,6 +148,7 @@
             <Value>../lib/BMP180</Value>
             <Value>../lib/BusIO</Value>
             <Value>../lib/MS4525</Value>
+            <Value>../lib/DS1302</Value>
           </ListValues>
         </avrgcccpp.compiler.directories.IncludePaths>
         <avrgcccpp.compiler.optimization.level>Optimize debugging experience (-Og)</avrgcccpp.compiler.optimization.level>
@@ -169,6 +171,12 @@
     </ToolchainSettings>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="lib\DS1302\virtuabotixRTC.cpp">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="lib\DS1302\virtuabotixRTC.h">
+      <SubType>compile</SubType>
+    </Compile>
     <Compile Include="variables.h">
       <SubType>compile</SubType>
     </Compile>
@@ -226,6 +234,7 @@
     <Folder Include="lib\" />
     <Folder Include="lib\BMP180\" />
     <Folder Include="lib\BusIO\" />
+    <Folder Include="lib\DS1302\" />
     <Folder Include="lib\MS4525\" />
     <Folder Include="lib\MS4525\" />
     <Folder Include="lib\SoftwareSerial\" />
@@ -246,6 +255,9 @@
       <SubType>compile</SubType>
     </None>
     <None Include="lib\BusIO\README.md">
+      <SubType>compile</SubType>
+    </None>
+    <None Include="lib\DS1302\README.md">
       <SubType>compile</SubType>
     </None>
     <None Include="lib\Wire\desktop.ini">
