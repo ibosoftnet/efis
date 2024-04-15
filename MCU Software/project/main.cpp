@@ -5,14 +5,16 @@
  * Author: Caglar
  */ 
 
-/* == Variables Header File == */
+/* == Variables Header Files == */
 #include "variables.h"
 
 /* == Includes == */
 #include <avr/io.h>
 #include <util/delay.h>
+#include <stdio.h>
 #include "arduino.h"
 #include "Wire.h"
+#include "SoftwareSerial.h"
 #include "virtuabotixRTC.h"
 #include "Adafruit_BMP085.h"
 #include "ms4525do.h"
@@ -20,6 +22,7 @@
 /* == Functions == */
 void readSettings();
 void processSettingsMessage();
+void dataOut();
 void imuInit();
 void imuCheck();
 void imuRead();
@@ -28,6 +31,9 @@ void magCheck();
 void magRead();
 void diffCheck();
 void diffRead();
+void readGnss();
+void processGnssMessage();
+void parseGnssMessage();
 
 /* == Others == */
 virtuabotixRTC RTC(RtcSclkPin, RtcIoPin, RtcCePin); // RTC
@@ -46,6 +52,7 @@ void setup() {
 	
 	// Com
 	Serial.begin(SERIAL_BAUDRATE);
+	mySerial.begin(MYSERIAL_BAUDRATE);
 	Wire.begin();
 	Wire.setClock(I2C_CLOCK);
 	
@@ -180,100 +187,20 @@ void loop() {
 		sscanf(set_RtcTimeMessage, "%u-%u-%uT%u:%u:%uZ", &RtcSetYear, &RtcSetMonth, &RtcSetDay, &RtcSedHr, &RtcSetMin, &RtcSetSec);
 		RTC.setDS1302Time(RtcSetSec, RtcSetMin, RtcSedHr, 0, RtcSetDay, RtcSetMonth, RtcSetYear);
 		set_RtcMessageStatus =0;
-	}
-	
+	}	
 	RTC.updateTime(); 
 	
-
-	/* Print */
-	Serial.print('#'); Serial.println(loopPrevElapsedTime);
 	
-	// RTC (ISO 8601 Date and time in UTC)
-	Serial.print('%'); // Indicates head of the data (not realated to ISO standart)
-	Serial.print(RTC.year);
-	Serial.print('-');
-	if (RTC.month < 10) {Serial.print('0');} Serial.print(RTC.month);
-	Serial.print('-');
-	if (RTC.dayofmonth < 10) {Serial.print('0');} Serial.print(RTC.dayofmonth);
-	Serial.print('T');
-	if (RTC.hours < 10) {Serial.print('0');} Serial.print(RTC.hours);
-	Serial.print(':');
-	if (RTC.minutes < 10) {Serial.print('0');} Serial.print(RTC.minutes);
-	Serial.print(':');
-	if (RTC.seconds < 10) {Serial.print('0');} Serial.print(RTC.seconds);
-	Serial.println('Z');
-
-	
-	// Settings
-	Serial.print("!asd="); Serial.println(set_altStd);
-	Serial.print("!atg="); Serial.println(set_altStg);
-	
-	// A/G sense
-	Serial.print("$gn1="); Serial.println(ag_onGnd1);
-	Serial.print("$gn2="); Serial.println(ag_onGnd2);
-	Serial.print("$gn3="); Serial.println(ag_onGnd3);
-	
-	// AOA (deg)
-	//Serial.print("$amn="); Serial.println(aoa_minAngle);
-	//Serial.print("$amx="); Serial.println(aoa_maxAngle);
-	Serial.print("$aoa="); Serial.println(aoa_angle);
-	
-	// Temp (celsius)
-	Serial.print("$tat="); Serial.println(temp_TATC);
-	
-	// IMU (g & dps)
-	Serial.print("%imu="); Serial.println(imuStatus);
-	Serial.print("$ax="); Serial.println(imu_ax);
-	Serial.print("$ay="); Serial.println(imu_ay);
-	Serial.print("$az="); Serial.println(imu_az);
-	Serial.print("$gx="); Serial.println(imu_gx);
-	Serial.print("$gy="); Serial.println(imu_gy);
-	Serial.print("$gz="); Serial.println(imu_gz);
-	
-	// Mag (deg)
-	Serial.print("%mag="); Serial.println(magStatus);
-	Serial.print("$mhd="); Serial.println(mag_hdg);
-	
-	// Press (Pa)
-	Serial.print("%prs="); Serial.println(pressStatus);
-	Serial.print("$prs="); Serial.println(press_press, 1);
-	
-	// Diff (Pa)
-	Serial.print("%dif="); Serial.println(diffStatus);
-	Serial.print("$dif="); Serial.println(diff_pressPa);
-	
-	/* Derived Values */
-	// Pitch (deg)
-	Serial.print("&pit="); Serial.println(drv_pitch);
-	// Roll (deg)
-	Serial.print("&rol="); Serial.println(drv_roll);
-	// Turn Rate (dps)
-	Serial.print("&trn="); Serial.println(drv_turnRate);
-	// SAT (celsius)
-	Serial.print("&sat="); Serial.println(drv_SATC);
-	// Preessure Alt (ft)
-	Serial.print("&plt="); Serial.println(drv_pressAltFt);
-	// Indicated Alt (ft)
-	Serial.print("&ilt="); Serial.println(drv_indAltFt);
-	// Vertical Speed (fpm)
-	Serial.print("&vsp="); Serial.println(drv_baroVspdFpm);
-	// KIAS (kts)
-	Serial.print("&ias="); Serial.println(drv_kias);
-	// KCAS (kts)
-	Serial.print("&cas="); Serial.println(drv_kcas);
-	// KTAS (kts)
-	Serial.print("&tas="); Serial.println(drv_ktas);
-	// Mach
-	Serial.print("&mac="); Serial.println(drv_mach, 4);
-	
-	// End of message
-	Serial.println('+');
+	/* Print datas */
+	dataOut();
 	
 	/* Loop timing */ 
+	readGnss();
 	readSettings();
 	timeNext = millis();
 	loopPrevElapsedTime = timeNext - timePrev;
 	while ((timeNext - timePrev) <= loopInterval) {
+		readGnss();
 		readSettings();
 		timeNext = millis();
 	}
@@ -421,7 +348,7 @@ void readSettings() {
 }
 
 void processSettingsMessage() {
-	// Gelen veriyi iþleme
+	// Gelen veriyi isleme
 	char *token = strtok(settingsBuffer, "!");			// "!" karakterine göre veriyi parçalýyoruz
 
 	while (token != NULL) {
@@ -439,4 +366,156 @@ void processSettingsMessage() {
 
 		token = strtok(NULL, "!");						// Sonraki tokena geçiyoruz
 	}
+}
+
+// ############################################################################################# //
+
+void readGnss() {
+	if (mySerial.available()) {
+		gnssNewMessage = true;
+		while (mySerial.available()) { // Seri portta veri varsa
+			char c = mySerial.read();   // Bir karakter okunuyor
+
+			if (c != '\n' && c != '\r') { // Satır sonu karakterleri hariç
+				gnssBuffer[gnssBufferIndex] = c;          // Karakter buffer'a ekleniyor
+				gnssBufferIndex = (gnssBufferIndex + 1) % GNSS_BUFFER_SIZE; // Buffer indeksi güncelleniyor
+			
+				if (gnssBufferIndex == 0) { // Buffer dolduğunda
+					gnssBuffer[GNSS_BUFFER_SIZE - 1] = '\0'; // String sonlandırılıyor
+					processGnssMessage(); // Mesaj işleniyor
+				}
+			}
+		}
+		parseGnssMessage();
+	} else {
+		gnssNewMessage = false;
+	}
+}
+
+void processGnssMessage() {
+	// Gelen veriyi işleme
+	char *token = strtok(gnssBuffer, "$"); // "$" karakterine göre veriyi parçalıyoruz
+
+	while (token != NULL) {
+		if (strstr(token, "GNGGA") != NULL) { // "GNGGA" cümlesini kontrol ediyoruz
+			char *value = strchr(token, ',') + 1; // İlk virgülün hemen sonrasındaki değeri alıyoruz
+			strcpy(GNSS_GGA, value); // Değeri GNSS_GGA değişkenine kopyalıyoruz
+			} else if (strstr(token, "GNGSA") != NULL) { // "GNGSA" cümlesini kontrol ediyoruz
+			char *value = strchr(token, ',') + 1; // İlk virgülün hemen sonrasındaki değeri alıyoruz
+			strcpy(GNSS_GSA, value); // Değeri GNSS_GSA değişkenine kopyalıyoruz
+			} else if (strstr(token, "GNRMC") != NULL) { // "GNRMC" cümlesini kontrol ediyoruz
+			char *value = strchr(token, ',') + 1; // İlk virgülün hemen sonrasındaki değeri alıyoruz
+			strcpy(GNSS_RMC, value); // Değeri GNSS_RMC değişkenine kopyalıyoruz
+			} else if (strstr(token, "GNVTG") != NULL) { // "GNVTG" cümlesini kontrol ediyoruz
+			char *value = strchr(token, ',') + 1; // İlk virgülün hemen sonrasındaki değeri alıyoruz
+			strcpy(GNSS_VTG, value); // Değeri GNSS_VTG değişkenine kopyalıyoruz
+		}
+
+		token = strtok(NULL, "$"); // Sonraki tokena geçiyoruz
+	}
+}
+
+void parseGnssMessage() {
+	/*sscanf(GNSS_GGA,);
+	sscanf(GNSS_GSA,);
+	sscanf(GNSS_RMC,);
+	sscanf(GNSS_VTG,);*/
+}
+
+
+// ############################################################################################# //
+
+
+void dataOut() {
+	/* Print */
+	Serial.print('#'); Serial.println(loopPrevElapsedTime);
+	
+	// RTC (ISO 8601 Date and time in UTC)
+	Serial.print('@'); // Indicates head of the data (not realated to ISO standart)
+	Serial.print(RTC.year);
+	Serial.print('-');
+	if (RTC.month < 10) {Serial.print('0');} Serial.print(RTC.month);
+	Serial.print('-');
+	if (RTC.dayofmonth < 10) {Serial.print('0');} Serial.print(RTC.dayofmonth);
+	Serial.print('T');
+	if (RTC.hours < 10) {Serial.print('0');} Serial.print(RTC.hours);
+	Serial.print(':');
+	if (RTC.minutes < 10) {Serial.print('0');} Serial.print(RTC.minutes);
+	Serial.print(':');
+	if (RTC.seconds < 10) {Serial.print('0');} Serial.print(RTC.seconds);
+	Serial.println('Z');
+
+	
+	// Settings
+	Serial.print("!asd="); Serial.println(set_altStd);
+	Serial.print("!atg="); Serial.println(set_altStg);
+	
+	// A/G sense
+	Serial.print("$gn1="); Serial.println(ag_onGnd1);
+	Serial.print("$gn2="); Serial.println(ag_onGnd2);
+	Serial.print("$gn3="); Serial.println(ag_onGnd3);
+	
+	// AOA (deg)
+	//Serial.print("$amn="); Serial.println(aoa_minAngle);
+	//Serial.print("$amx="); Serial.println(aoa_maxAngle);
+	Serial.print("$aoa="); Serial.println(aoa_angle);
+	
+	// Temp (celsius)
+	Serial.print("$tat="); Serial.println(temp_TATC);
+	
+	// IMU (g & dps)
+	Serial.print("%imu="); Serial.println(imuStatus);
+	Serial.print("$ax="); Serial.println(imu_ax);
+	Serial.print("$ay="); Serial.println(imu_ay);
+	Serial.print("$az="); Serial.println(imu_az);
+	Serial.print("$gx="); Serial.println(imu_gx);
+	Serial.print("$gy="); Serial.println(imu_gy);
+	Serial.print("$gz="); Serial.println(imu_gz);
+	
+	// Mag (deg)
+	Serial.print("%mag="); Serial.println(magStatus);
+	Serial.print("$mhd="); Serial.println(mag_hdg);
+	
+	// Press (Pa)
+	Serial.print("%prs="); Serial.println(pressStatus);
+	Serial.print("$prs="); Serial.println(press_press, 1);
+	
+	// Diff (Pa)
+	Serial.print("%dif="); Serial.println(diffStatus);
+	Serial.print("$dif="); Serial.println(diff_pressPa);
+	
+	/* Derived Values */
+	// Pitch (deg)
+	Serial.print("&pit="); Serial.println(drv_pitch);
+	// Roll (deg)
+	Serial.print("&rol="); Serial.println(drv_roll);
+	// Turn Rate (dps)
+	Serial.print("&trn="); Serial.println(drv_turnRate);
+	// SAT (celsius)
+	Serial.print("&sat="); Serial.println(drv_SATC);
+	// Preessure Alt (ft)
+	Serial.print("&plt="); Serial.println(drv_pressAltFt);
+	// Indicated Alt (ft)
+	Serial.print("&ilt="); Serial.println(drv_indAltFt);
+	// Vertical Speed (fpm)
+	Serial.print("&vsp="); Serial.println(drv_baroVspdFpm);
+	// KIAS (kts)
+	Serial.print("&ias="); Serial.println(drv_kias);
+	// KCAS (kts)
+	Serial.print("&cas="); Serial.println(drv_kcas);
+	// KTAS (kts)
+	Serial.print("&tas="); Serial.println(drv_ktas);
+	// Mach
+	Serial.print("&mac="); Serial.println(drv_mach, 4);
+	
+	// GNSS
+	Serial.print("%gnm="); Serial.println(gnssNewMessage);
+	Serial.print("?gga="); Serial.println(GNSS_GGA);
+	Serial.print("?gsa="); Serial.println(GNSS_GSA);
+	Serial.print("?rmc="); Serial.println(GNSS_RMC);
+	Serial.print("?vtg="); Serial.println(GNSS_VTG);
+	
+	
+	// End of message
+	Serial.println('+');
 }
