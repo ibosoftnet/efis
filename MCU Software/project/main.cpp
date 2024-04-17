@@ -10,7 +10,6 @@
 
 /* == Includes == */
 #include <avr/io.h>
-#include <util/delay.h>
 #include <stdio.h>
 #include "arduino.h"
 #include "Wire.h"
@@ -47,7 +46,7 @@ void setup() {
 	for(i=0; i<6; i++) {
 		// turn LED on
 		PORTB ^= 1 << PINB5;
-		_delay_ms(150);
+		delay(150);
 	}
 	
 	// Com
@@ -70,21 +69,21 @@ void setup() {
 	PORTB |= (1 << PORTB2);		// A/G sense pin 3 pull-up
 	// IMU
 	imuInit();
-	_delay_ms(1);
+	delay(1);
 	// Mag
 	magInit();
-	_delay_ms(1);
+	delay(1);
 	// Press
 	bmp.begin(bmpOversampling);
-	_delay_ms(1);
+	delay(1);
 	// Diff
 	pres.Config(&Wire, diffAdress, 1.0f, -1.0f);
 	pres.Begin();
-	//_delay_ms(1);
+	//delay(1);
 	
 	// Delay after initialization
 	Serial.println("Initialization Ok!");
-	_delay_ms(1000);
+	delay(1000);
 }
 
 void loop() {
@@ -118,28 +117,28 @@ void loop() {
 	
 	// IMU
 	imuCheck();
-	_delay_ms(1);
+	delay(1);
 	imuRead();
 		
 	// Mag
 	magCheck();
-	_delay_ms(1);
+	delay(1);
 	magRead();
 	
 	// Press
 	pressStatusPrev = pressStatus;
 	if (bmp.begin()) {pressStatus =  true;} else {pressStatus =  false;}
 	if (!pressStatusPrev & pressStatus) {bmp.begin(bmpOversampling);}
-	_delay_ms(1);
+	delay(1);
 	press_press = bmp.readPressure();
 	
 	// Diff
 	diffStatusPrev = diffStatus;
 	if (pres.Begin()) {diffStatus =  true;} else {diffStatus =  false;}
 	if (!pressStatusPrev & pressStatus) {pres.Begin();}
-	_delay_ms(1);
+	delay(1);
 	pres.Read();
-	_delay_ms(1);
+	delay(1);
 	diff_pressPa = pres.pres_pa() + diffPressPaErr;
 	//diffDieTempC = pres.die_temp_c();
 	
@@ -312,7 +311,7 @@ void magRead() {
 		mag_hdg = 180 - atan2(magz, magx) * 57.2957795131; // PI/180=57.2957795131
 		
 	} else {
-		_delay_ms(magRetryInterval);
+		delay(magRetryInterval);
 		Wire.requestFrom(magAdress, 1);
 		while (Wire.available()) {magDataReady = Wire.read();}
 		if (magDataReady == 0) {
@@ -322,6 +321,8 @@ void magRead() {
 		}	
 	}
 }
+
+// ############################################################################################# //
 
 void readSettings() {
 	if (Serial.available()) {								// Seri portta veri var mý kontrol ediliyor
@@ -393,16 +394,23 @@ void readGnss() {
 }
 
 void processGnssMessage() {
+	
+    // Stringleri '\0' ile sıfırla
+    //for (i = 0; i < sizeof(GNSS_GGA); ++i) {GNSS_GGA[i] = '\0';}
+    //for (i = 0; i < sizeof(GNSS_GSA); ++i) {GNSS_GSA[i] = '\0';}
+    //for (i = 0; i < sizeof(GNSS_RMC); ++i) {GNSS_RMC[i] = '\0';}
+    //for (i = 0; i < sizeof(GNSS_VTG); ++i) {GNSS_VTG[i] = '\0';}
+	
 	// Gelen veriyi işleme
 	char *token = strtok(gnssBuffer, "$"); // "$" karakterine göre veriyi parçalıyoruz
 
 	while (token != NULL) {
-		if (strstr(token, "GNGGA") != NULL) { // "GNGGA" cümlesini kontrol ediyoruz
-			char *value = strchr(token, ',') + 1; // İlk virgülün hemen sonrasındaki değeri alıyoruz
-			strcpy(GNSS_GGA, value); // Değeri GNSS_GGA değişkenine kopyalıyoruz
-			} else if (strstr(token, "GNGSA") != NULL) { // "GNGSA" cümlesini kontrol ediyoruz
+		if (strstr(token, "GNGSA") != NULL) { // "GNGSA" cümlesini kontrol ediyoruz
 			char *value = strchr(token, ',') + 1; // İlk virgülün hemen sonrasındaki değeri alıyoruz
 			strcpy(GNSS_GSA, value); // Değeri GNSS_GSA değişkenine kopyalıyoruz
+			} else if (strstr(token, "GNGGA") != NULL) { // "GNGGA" cümlesini kontrol ediyoruz
+			char *value = strchr(token, ',') + 1; // İlk virgülün hemen sonrasındaki değeri alıyoruz
+			strcpy(GNSS_GGA, value); // Değeri GNSS_GGA değişkenine kopyalıyoruz
 			} else if (strstr(token, "GNRMC") != NULL) { // "GNRMC" cümlesini kontrol ediyoruz
 			char *value = strchr(token, ',') + 1; // İlk virgülün hemen sonrasındaki değeri alıyoruz
 			strcpy(GNSS_RMC, value); // Değeri GNSS_RMC değişkenine kopyalıyoruz
@@ -413,6 +421,10 @@ void processGnssMessage() {
 
 		token = strtok(NULL, "$"); // Sonraki tokena geçiyoruz
 	}
+	
+	// Stringleri '\0' ile sıfırla
+	//for (i = 0; i < sizeof(gnssBuffer); ++i) {gnssBuffer[i] = '\0';}
+	
 }
 
 void parseGnssMessage() {
@@ -510,8 +522,8 @@ void dataOut() {
 	
 	// GNSS
 	Serial.print("%gnm="); Serial.println(gnssNewMessage);
-	Serial.print("?gga="); Serial.println(GNSS_GGA);
 	Serial.print("?gsa="); Serial.println(GNSS_GSA);
+	Serial.print("?gga="); Serial.println(GNSS_GGA);
 	Serial.print("?rmc="); Serial.println(GNSS_RMC);
 	Serial.print("?vtg="); Serial.println(GNSS_VTG);
 	

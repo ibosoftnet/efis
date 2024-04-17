@@ -7,7 +7,6 @@
 
 /* == Includes == */
 #include <avr/io.h>
-#include <util/delay.h>
 #include <stdio.h>
 #include "arduino.h"
 #include "Wire.h"
@@ -18,8 +17,8 @@
 
 /* == Com == */
 #define SERIAL_BAUDRATE 115200
-#define MYSERIAL_BAUDRATE 9600 // GNSS software serial baudrate
-#define I2C_CLOCK 400000 // I2C clock in Hz
+#define MYSERIAL_BAUDRATE 9600	// GNSS software serial baudrate
+#define I2C_CLOCK 400000		// I2C clock in Hz
 
 /* == RTC == */
 static const uint8_t RtcCePin = 7;		// DS1302 Chip Enable
@@ -29,14 +28,14 @@ uint16_t RtcSetSec=0, RtcSetMin=0, RtcSedHr=0, RtcSetDay=1, RtcSetMonth=1, RtcSe
 
 /* == GNSS == */
 SoftwareSerial mySerial (2, 3); // RX, TX
-static const uint16_t GNSS_BUFFER_SIZE = 384;
+static const uint16_t GNSS_BUFFER_SIZE = 400;
 char gnssBuffer[GNSS_BUFFER_SIZE];
 uint8_t gnssBufferIndex = 0;
 boolean gnssNewMessage = false;
-char GNSS_GGA[48]; char GNSS_GSA[48]; char GNSS_RMC[48]; char GNSS_VTG[48];
+char GNSS_GGA[64], GNSS_GSA[64], GNSS_RMC[64], GNSS_VTG[64];
 
 /* == General Variables == */
-int i;
+size_t i;
 unsigned long timePrev;
 unsigned long timeNext;
 static const uint16_t loopInterval = 100; // Loop interval in ms
