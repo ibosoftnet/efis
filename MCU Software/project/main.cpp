@@ -130,7 +130,7 @@ void loop() {
 	if (bmp.begin()) {pressStatus =  true;} else {pressStatus =  false;}
 	if (!pressStatusPrev & pressStatus) {bmp.begin(bmpOversampling);}
 	delay(1);
-	press_press = bmp.readPressure();
+	press_pressPa = bmp.readPressure();
 	
 	// Diff
 	diffStatusPrev = diffStatus;
@@ -153,7 +153,7 @@ void loop() {
 	drv_SATC = temp_TATC; // su anlik donusum faktoru yok.
 	// Pressure ALT ft
 	drvPrevPressAlt = drv_pressAltFt;
-	drv_pressAltFt = (constT0/constLb)*( pow(press_press/constStdP, (-constRun*constLb)/(constg0*constM0)) - 1.0 ) * constmtoft;
+	drv_pressAltFt = (constT0/constLb)*( pow(press_pressPa/constStdP, (-constRun*constLb)/(constg0*constM0)) - 1.0 ) * constmtoft;
 	// Vertical Speed
 	drvBaroVspdLoopCount++;
 	drvBaroVspdSumOfAltDiff =+ (drv_pressAltFt - drvPrevPressAlt);
@@ -167,18 +167,18 @@ void loop() {
 	if (set_altStd == 1) {
 		drv_indAltFt = drv_pressAltFt;
 	} else {
-		drv_indAltFt = (constT0/constLb)*( pow(press_press/set_altStg, (-constRun*constLb)/(constg0*constM0)) - 1.0 ) * constmtoft;
+		drv_indAltFt = (constT0/constLb)*( pow(press_pressPa/set_altStg, (-constRun*constLb)/(constg0*constM0)) - 1.0 ) * constmtoft;
 	}
 	// KIAS
-	drv_kias = 1.943845249221964 * sqrt( ((2*constYAir*press_press)/((constYAir-1)*constStdAirD)) * ( pow( (press_press+diff_pressPa)/press_press, (constYAir-1.0)/constYAir ) - 1.0) );
+	drv_kias = 1.943845249221964 * sqrt( ((2*constYAir*press_pressPa)/((constYAir-1)*constStdAirD)) * ( pow( (press_pressPa+diff_pressPa)/press_pressPa, (constYAir-1.0)/constYAir ) - 1.0) );
 	if (isnan(drv_kias)) {drv_kias=0;} // If result of sqrt is nan, set 0 to result
 	// KCAS
 	drv_kcas = drv_kias; // su anlik donusum faktoru yok.
 	// KTAS
-	drv_ktas = 1.943845249221964 * sqrt( (2*diff_pressPa*constStdAirD) / sqrt( pow( (press_press/(constR*(drv_SATC+constKMinusC))), 2 ) ) );
+	drv_ktas = 1.943845249221964 * sqrt( (2*diff_pressPa*constStdAirD) / sqrt( pow( (press_pressPa/(constR*(drv_SATC+constKMinusC))), 2 ) ) );
 	if (isnan(drv_ktas)) {drv_ktas=0;} // If result of sqrt is nan, set 0 to result
 	// Mach
-	drv_mach = sqrt( (2/(constYAir-1)) * ( pow( (diff_pressPa/press_press)+1.0, (constYAir-1.0)/constYAir ) - 1.0) );
+	drv_mach = sqrt( (2/(constYAir-1)) * ( pow( (diff_pressPa/press_pressPa)+1.0, (constYAir-1.0)/constYAir ) - 1.0) );
 	if (isnan(drv_mach)) {drv_mach=0;} // If result of sqrt is nan, set 0 to result
 		
 	// RTC
@@ -396,10 +396,10 @@ void readGnss() {
 void processGnssMessage() {
 	
     // Stringleri '\0' ile sıfırla
-    //for (i = 0; i < sizeof(GNSS_GGA); ++i) {GNSS_GGA[i] = '\0';}
-    //for (i = 0; i < sizeof(GNSS_GSA); ++i) {GNSS_GSA[i] = '\0';}
-    //for (i = 0; i < sizeof(GNSS_RMC); ++i) {GNSS_RMC[i] = '\0';}
-    //for (i = 0; i < sizeof(GNSS_VTG); ++i) {GNSS_VTG[i] = '\0';}
+    for (i = 0; i < sizeof(GNSS_GGA); ++i) {GNSS_GGA[i] = '\0';}
+    for (i = 0; i < sizeof(GNSS_GSA); ++i) {GNSS_GSA[i] = '\0';}
+    for (i = 0; i < sizeof(GNSS_RMC); ++i) {GNSS_RMC[i] = '\0';}
+    for (i = 0; i < sizeof(GNSS_VTG); ++i) {GNSS_VTG[i] = '\0';}
 	
 	// Gelen veriyi işleme
 	char *token = strtok(gnssBuffer, "$"); // "$" karakterine göre veriyi parçalıyoruz
@@ -423,7 +423,7 @@ void processGnssMessage() {
 	}
 	
 	// Stringleri '\0' ile sıfırla
-	//for (i = 0; i < sizeof(gnssBuffer); ++i) {gnssBuffer[i] = '\0';}
+	for (i = 0; i < sizeof(gnssBuffer); ++i) {gnssBuffer[i] = '\0';}
 	
 }
 
@@ -490,7 +490,7 @@ void dataOut() {
 	
 	// Press (Pa)
 	Serial.print("%prs="); Serial.println(pressStatus);
-	Serial.print("$prs="); Serial.println(press_press, 1);
+	Serial.print("$prs="); Serial.println(press_pressPa, 1);
 	
 	// Diff (Pa)
 	Serial.print("%dif="); Serial.println(diffStatus);

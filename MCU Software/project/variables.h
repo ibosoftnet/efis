@@ -17,8 +17,8 @@
 
 /* == Com == */
 #define SERIAL_BAUDRATE 115200
-#define MYSERIAL_BAUDRATE 9600	// GNSS software serial baudrate
-#define I2C_CLOCK 400000		// I2C clock in Hz
+#define MYSERIAL_BAUDRATE 38400	// GNSS software serial baudrate
+#define I2C_CLOCK 400000			// I2C clock in Hz
 
 /* == RTC == */
 static const uint8_t RtcCePin = 7;		// DS1302 Chip Enable
@@ -64,8 +64,8 @@ boolean newSettingsData = false;
 boolean set_RtcMessageStatus = 0;
 char set_RtcTimeMessage[] = "2000-01-01T00:00:00Z";
 // Altimeter Setting
-boolean set_altStd = 1;			// Altimeter STD setting
-double set_altStg = constStdP;	// Altimeter setting value, standart at first initialization
+boolean set_altStd = 0;			// Altimeter STD setting
+double set_altStg = 101300.0;	// Altimeter setting value, standart at first initialization
 
 
 /* == Sensors == */
@@ -145,7 +145,7 @@ boolean pressStatusPrev;
 boolean pressStatus = 0;
 Adafruit_BMP085 bmp;
 static const uint8_t bmpOversampling = BMP085_ULTRAHIGHRES; // BMP085_ULTRAHIGHRES, BMP085_HIGHRES, BMP085_STANDARD
-double press_press;
+double press_pressPa;
 
 // Diff
 boolean diffStatusPrev;
