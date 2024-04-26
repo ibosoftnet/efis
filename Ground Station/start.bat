@@ -1,2 +1,2 @@
-start efis.py
+py efis.py
 pause

@@ -1,6 +1,0 @@
-4525 5AI 0010 2401 0197 18326
-
-5 5V
-A Output Type: 10% to 90%
-I I2C Addr. 0x28H
-0010 (?) Pressure Range (psi) 001
