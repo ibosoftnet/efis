@@ -16,9 +16,10 @@
 #include "ms4525do.h"
 
 /* == Com == */
-#define SERIAL_BAUDRATE 115200
-#define MYSERIAL_BAUDRATE 38400	// GNSS software serial baudrate
-#define I2C_CLOCK 400000			// I2C clock in Hz
+#define I2C_CLOCK 400000				// I2C clock in Hz
+#define SERIAL_BAUDRATE 115200			// Serial baudrate
+#define MYSERIAL_BAUDRATE 38400			// GNSS software serial baudrate
+SoftwareSerial mySerial(2, 3, 1);		// RX, TX; last argument should 1 for enabling inverse logic for high speed
 
 /* == RTC == */
 static const uint8_t RtcCePin = 7;		// DS1302 Chip Enable
@@ -27,7 +28,6 @@ static const uint8_t RtcSclkPin = 5;	// DS1302 Clock
 uint16_t RtcSetSec=0, RtcSetMin=0, RtcSedHr=0, RtcSetDay=1, RtcSetMonth=1, RtcSetYear=2000;
 
 /* == GNSS == */
-SoftwareSerial mySerial (2, 3); // RX, TX
 static const uint16_t GNSS_BUFFER_SIZE = 400;
 char gnssBuffer[GNSS_BUFFER_SIZE];
 uint8_t gnssBufferIndex = 0;
