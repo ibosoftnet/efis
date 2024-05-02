@@ -18,7 +18,7 @@
 /* == Com == */
 #define I2C_CLOCK 400000				// I2C clock in Hz
 #define SERIAL_BAUDRATE 115200			// Serial baudrate
-#define MYSERIAL_BAUDRATE 38400			// GNSS software serial baudrate
+#define MYSERIAL_BAUDRATE 9600			// GNSS software serial baudrate
 SoftwareSerial mySerial(2, 3, 1);		// RX, TX; last argument should 1 for enabling inverse logic for high speed
 
 /* == RTC == */
