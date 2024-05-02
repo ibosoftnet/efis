@@ -24,10 +24,12 @@
 */
 
 #include "ms4525do.h"  // NOLINT
-// burayı düzenledim
+#if defined(ARDUINO)
 #include "Arduino.h"
 #include "Wire.h"
-
+#else
+#include "core/core.h"
+#endif
 
 namespace bfs {
 
