@@ -374,16 +374,16 @@ void processSettingsMessage() {
 void readGnss() {
 	if (mySerial.available()) {
 		gnssNewMessage = true;
-		while (mySerial.available()) { // Seri portta veri varsa
-			char c = mySerial.read();   // Bir karakter okunuyor
+		while (mySerial.available()) {				// Seri portta veri varsa
+			char c = mySerial.read();				// Bir karakter okunuyor
 
-			if (c != '\n' && c != '\r') { // Satır sonu karakterleri hariç
-				gnssBuffer[gnssBufferIndex] = c;          // Karakter buffer'a ekleniyor
-				gnssBufferIndex = (gnssBufferIndex + 1) % GNSS_BUFFER_SIZE; // Buffer indeksi güncelleniyor
+			if (c != '\n' && c != '\r') {			// Satır sonu karakterleri hariç
+				gnssBuffer[gnssBufferIndex] = c;	// Karakter buffer'a ekleniyor
+				gnssBufferIndex = (gnssBufferIndex + 1) % GNSS_BUFFER_SIZE;	// Buffer indeksi güncelleniyor
 			
-				if (gnssBufferIndex == 0) { // Buffer dolduğunda
-					gnssBuffer[GNSS_BUFFER_SIZE - 1] = '\0'; // String sonlandırılıyor
-					processGnssMessage(); // Mesaj işleniyor
+				if ( gnssBufferIndex == 0 || mySerial.available() == 0 ) {	// Buffer dolduğunda veya iletişim kesildiğinde
+					gnssBuffer[GNSS_BUFFER_SIZE - 1] = '\0';				// String sonlandırılıyor
+					processGnssMessage();									// Mesaj işleniyor
 				}
 			}
 		}
@@ -395,11 +395,11 @@ void readGnss() {
 
 void processGnssMessage() {
 	
-    // Stringleri '\0' ile sıfırla
-    for (i = 0; i < sizeof(GNSS_GGA); ++i) {GNSS_GGA[i] = '\0';}
-    for (i = 0; i < sizeof(GNSS_GSA); ++i) {GNSS_GSA[i] = '\0';}
-    for (i = 0; i < sizeof(GNSS_RMC); ++i) {GNSS_RMC[i] = '\0';}
-    for (i = 0; i < sizeof(GNSS_VTG); ++i) {GNSS_VTG[i] = '\0';}
+	// Stringleri '\0' ile sıfırla
+	for (i = 0; i < sizeof(GNSS_GGA); ++i) {GNSS_GGA[i] = '\0';}
+	for (i = 0; i < sizeof(GNSS_GSA); ++i) {GNSS_GSA[i] = '\0';}
+	for (i = 0; i < sizeof(GNSS_RMC); ++i) {GNSS_RMC[i] = '\0';}
+	for (i = 0; i < sizeof(GNSS_VTG); ++i) {GNSS_VTG[i] = '\0';}
 	
 	// Gelen veriyi işleme
 	char *token = strtok(gnssBuffer, "$"); // "$" karakterine göre veriyi parçalıyoruz

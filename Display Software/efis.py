@@ -2,6 +2,11 @@ import re
 from datetime import datetime
 import configparser
 import serial
+import logging
+import time
+
+import pygame
+import sys
 
 # Config
 config = configparser.ConfigParser()
@@ -9,10 +14,40 @@ config.read('config.ini')
 serialBaudRate = config.getint('SERIAL', 'BAUD_RATE')
 serialPortNum = config.get('SERIAL', 'PORT_NUM')
 
+
+# Logging
+logging.basicConfig(filename='status.log', level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+logging.info("--------------------")
+logging.info("EFIS Started")
+logging.info("Serial Port Num: " + serialPortNum)
+logging.info("Serial Baud Rate: " + str(serialBaudRate))
+logging.info("--------------------")
+
+print("--------------------")
+print("EFIS Started")
+print("Serial Port Num: " + serialPortNum)
+print("Serial Baud Rate: " + str(serialBaudRate))
+print("--------------------")
+
 # Serial Port
-ser = serial.Serial(serialPortNum, serialBaudRate)
-if not ser.is_open:
-    ser.open()
+def serialOpen():
+    try:
+        ser = serial.Serial(serialPortNum, serialBaudRate)
+        if not ser.is_open:
+            ser.open()
+    except serial.SerialException as e:
+        logging.error("Serial port error:", str(e))
+        print("Serial port error:", str(e))
+try:
+    ser = serial.Serial(serialPortNum, serialBaudRate)
+    if not ser.is_open:
+        ser.open()
+except serial.SerialException as e:
+    logging.error("Serial port error:", str(e))
+    print("Serial port error:", str(e))
+
+serialOpen()
 
 # Constanst
 constStdP = 101325.0	# pascal, ref: ICAO Doc 7488/3
@@ -70,15 +105,57 @@ def convert_int(value):
         return int(value)
     except ValueError:
         return None
+    
+# --------------------
 
+# Display
+SCREEN_WIDTH = 858
+SCREEN_HEIGHT = 857
+
+pygame.init()
+screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+pygame.display.set_caption("PFD")
+
+clock = pygame.time.Clock()
+
+# PFD Background
+pfdBackground = pygame.image.load("symbology/pfd_background.png")
+
+# Colors
+WHITE = (255, 255, 255)
+BLACK = (0, 0, 0)
+BOEING_GRAY = (69, 69, 69)
+BOEING_MAGENTA = (255, 0, 204)
+BOEING_CYAN = (0, 255, 255)
+BOEING_GREEN = (0, 255, 0)
+BOEING_AMBER = (255, 179, 0)
+BOEING_RED = (252, 0, 0)
+
+# Fonts
+pfdSpdFont = pygame.font.Font('fonts/OCR-B/OCR-B.ttf', 24)
+pfdAltFont = pygame.font.Font('fonts/OCR-B/OCR-B.ttf', 18)
+pfdHdgFont = pygame.font.Font('fonts/OCR-B/OCR-B.ttf', 12)
+
+
+    
+# --------------------
+
+# Main Loop
 while True:
     # Process incoming data
     while True:       
-        # Seri porttan gelen veriyi oku
-        try:
-            incoming_data = ser.readline().decode('ascii').strip()
-        except UnicodeDecodeError:
-            continue
+        while True:
+            try:
+                incoming_data = ser.readline().decode('ascii').strip()
+                break
+            except serial.SerialException as e:
+                logging.error("Serial port error:", str(e))
+                print("Serial port error:", str(e))
+                serialOpen()
+            except UnicodeDecodeError:
+                continue
+            time.sleep(1)
+
 
         # Veri işleme işaretlerine göre veriyi parçala
         if incoming_data.startswith('!'):
@@ -190,3 +267,32 @@ while True:
     print("drv_ktas:", drv_ktas)
     print("drv_mach:", drv_mach)
     print("drv_kcas:", drv_kcas)
+
+    # Display
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
+            pygame.quit()
+            sys.exit()
+    
+    
+    # PFD Background
+    screen.fill(BOEING_GRAY)
+    screen.blit(pfdBackground, (0, 0))
+
+    # Speed
+    pfdSpd = pfdSpdFont.render(format(round(drv_kcas)), True, WHITE)
+    screen.blit(pfdSpd, (47, 406))
+
+    # Altitude
+    pfdAlt = pfdAltFont.render(format(round(drv_indAltFt)), True, WHITE)
+    screen.blit(pfdAlt, (671, 410))
+
+    # Heading
+    pfdHdg = pfdHdgFont.render("{} H".format(round(mag_hdg)), True, BOEING_MAGENTA)
+    screen.blit(pfdHdg, (272, 795))
+
+
+
+    pygame.display.flip()
+    clock.tick(60)
+    # --------------------
