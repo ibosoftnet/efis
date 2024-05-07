@@ -67,6 +67,8 @@ char set_RtcTimeMessage[] = "2000-01-01T00:00:00Z";
 boolean set_altStd = 0;			// Altimeter STD setting
 double set_altStg = 101300.0;	// Altimeter setting value, standart at first initialization
 
+/* == I2C Switch == */
+static const int8_t I2CSwAdress = 0x70;
 
 /* == Sensors == */
 // A/G sensing
@@ -88,6 +90,7 @@ uint16_t tempOutPin;
 float temp_TATC;
 
 // IMU
+static const uint8_t IMUChannel = 1;
 boolean imuStatusPrev;
 boolean imuStatus = 0;
 static const int8_t imuAdress = 0x68; // Default
@@ -117,6 +120,7 @@ static const float imuGyroyErr = 0.0;
 static const float imuGyrozErr = 0.0;
 
 // Mag
+static const uint8_t MagChannel = 2;
 boolean magStatusPrev;
 boolean magStatus = 0;
 static const int8_t magAdress = 0x0D;		// QMC5883
@@ -141,6 +145,7 @@ static const float magyErr = 0.0;
 static const float magzErr = 0.0;
 
 // Press
+static const uint8_t PressChannel = 8;
 boolean pressStatusPrev;
 boolean pressStatus = 0;
 Adafruit_BMP085 bmp;
@@ -148,6 +153,7 @@ static const uint8_t bmpOversampling = BMP085_ULTRAHIGHRES; // BMP085_ULTRAHIGHR
 double press_pressPa;
 
 // Diff
+static const uint8_t DiffChannel = 4;
 boolean diffStatusPrev;
 boolean diffStatus = 0;
 static const int8_t diffAdress = 0x28; // Default

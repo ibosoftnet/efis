@@ -22,6 +22,7 @@
 void readSettings();
 void processSettingsMessage();
 void dataOut();
+void selectI2CChannel(uint8_t I2CSwChannel);
 void imuInit();
 void imuCheck();
 void imuRead();
@@ -67,19 +68,26 @@ void setup() {
 	PORTB |= (1 << PORTB1);		// A/G sense pin 2 pull-up
 	DDRB &= ~(1 << DDB2);		// A/G sense pin 3
 	PORTB |= (1 << PORTB2);		// A/G sense pin 3 pull-up
+	// I2C Switch
+	DDRB |= (1 << PB3);			// Reset pin of the I2C switch IC must be high
+	PORTB |= (1 << PB3);		// Reset pin of the I2C switch IC must be high
 	// IMU
+	selectI2CChannel(IMUChannel);
 	imuInit();
-	delay(1);
+	delayMicroseconds(10);
 	// Mag
+	selectI2CChannel(MagChannel);
 	magInit();
-	delay(1);
+	delayMicroseconds(10);
 	// Press
+	selectI2CChannel(PressChannel);
 	bmp.begin(bmpOversampling);
-	delay(1);
+	delayMicroseconds(10);
 	// Diff
+	selectI2CChannel(DiffChannel);
 	pres.Config(&Wire, diffAdress, 1.0f, -1.0f);
 	pres.Begin();
-	//delay(1);
+	//delayMicroseconds(10);
 	
 	// Delay after initialization
 	Serial.println("Initialization Ok!");
@@ -116,31 +124,38 @@ void loop() {
 	temp_TATC = ((float)(tempOutPin - tempRefPin)) * tempFactor;
 	
 	// IMU
+	selectI2CChannel(IMUChannel);
 	imuCheck();
-	delay(1);
+	delayMicroseconds(10);
 	imuRead();
+	delayMicroseconds(10);
 		
 	// Mag
+	selectI2CChannel(MagChannel);
 	magCheck();
-	delay(1);
+	delayMicroseconds(10);
 	magRead();
+	delayMicroseconds(10);
 	
 	// Press
+	selectI2CChannel(PressChannel);
 	pressStatusPrev = pressStatus;
 	if (bmp.begin()) {pressStatus =  true;} else {pressStatus =  false;}
 	if (!pressStatusPrev & pressStatus) {bmp.begin(bmpOversampling);}
-	delay(1);
+	delayMicroseconds(10);
 	press_pressPa = bmp.readPressure();
+	delayMicroseconds(10);
 	
 	// Diff
+	selectI2CChannel(DiffChannel);
 	diffStatusPrev = diffStatus;
 	if (pres.Begin()) {diffStatus =  true;} else {diffStatus =  false;}
 	if (!pressStatusPrev & pressStatus) {pres.Begin();}
-	delay(1);
+	delayMicroseconds(10);
 	pres.Read();
-	delay(1);
 	diff_pressPa = pres.pres_pa() + diffPressPaErr;
 	//diffDieTempC = pres.die_temp_c();
+	//delayMicroseconds(10);
 	
 	/* Derived Values */
 	// Pitch
@@ -207,6 +222,13 @@ void loop() {
 
 
 // ############################################################################################# //
+
+void selectI2CChannel(uint8_t I2CSwChannel) {
+	Wire.beginTransmission(I2CSwAdress);
+	Wire.write(I2CSwChannel);
+	Wire.endTransmission();
+	delayMicroseconds(5);
+}
 
 void imuInit() {
 	Wire.beginTransmission(imuAdress);

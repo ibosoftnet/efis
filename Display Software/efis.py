@@ -4,9 +4,10 @@ import configparser
 import serial
 import logging
 import time
-
+import math
 import pygame
 import sys
+
 
 # Config
 config = configparser.ConfigParser()
@@ -135,6 +136,11 @@ BOEING_RED = (252, 0, 0)
 pfdSpdFont = pygame.font.Font('fonts/OCR-B/OCR-B.ttf', 24)
 pfdAltFont = pygame.font.Font('fonts/OCR-B/OCR-B.ttf', 18)
 pfdHdgFont = pygame.font.Font('fonts/OCR-B/OCR-B.ttf', 12)
+
+# Attitude Indicator
+pfd_att_img = pygame.image.load("symbology/pfd_att.png")
+pfd_att_split_axis_pointer = pygame.image.load("symbology/pfd_split_axis_pointer.png")
+pfd_att_rect = pfd_att_img.get_rect()
 
 
     
@@ -275,8 +281,27 @@ while True:
             sys.exit()
     
     
-    # PFD Background
+    # Background
     screen.fill(BOEING_GRAY)
+
+    # Atitude Indicator
+    att_ctr_x = 388
+    att_ctr_y = 427
+    pitch_offset = 8.8 # Pixels per degree
+
+
+    pfd_att_rect.center = (att_ctr_x, att_ctr_y + round(drv_pitch * pitch_offset))
+    pfd_rotated_img = pygame.transform.rotate(pfd_att_img, drv_roll)
+    pfd_rotated_rect = pfd_rotated_img.get_rect(center=pfd_att_rect.center)
+
+    # Döndürülmüş fotoğrafı ekrana çiz
+    screen.blit(pfd_rotated_img, pfd_rotated_rect)
+
+
+    # Split Axis Pointer
+    screen.blit(pfd_att_split_axis_pointer, (0, 0))
+
+    # PFD Background
     screen.blit(pfdBackground, (0, 0))
 
     # Speed
