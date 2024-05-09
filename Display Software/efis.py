@@ -287,20 +287,21 @@ while True:
     # Atitude Indicator
     att_ctr_x = 388
     att_ctr_y = 427
-    pitch_offset = 8.8 # Pixels per degree
-
-
-    pfd_att_rect.center = (att_ctr_x, att_ctr_y + round(drv_pitch * pitch_offset))
+    pitch_offset = 8.8  # Pixels per degree
+        # Center image
+    pfd_att_rect = pfd_att_img.get_rect(center=(att_ctr_x, att_ctr_y))
+        # Rotate image
     pfd_rotated_img = pygame.transform.rotate(pfd_att_img, drv_roll)
     pfd_rotated_rect = pfd_rotated_img.get_rect(center=pfd_att_rect.center)
-
-    # Döndürülmüş fotoğrafı ekrana çiz
+        # Displace image according to rotaton
+    pfd_rotated_rect.x += round(math.cos(math.radians(90-drv_roll)) * pitch_offset * drv_pitch)
+    pfd_rotated_rect.y += round(math.sin(math.radians(90-drv_roll)) * pitch_offset * drv_pitch)
+        # Draw image
     screen.blit(pfd_rotated_img, pfd_rotated_rect)
-
-
+    
     # Split Axis Pointer
     screen.blit(pfd_att_split_axis_pointer, (0, 0))
-
+    
     # PFD Background
     screen.blit(pfdBackground, (0, 0))
 
