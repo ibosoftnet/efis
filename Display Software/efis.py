@@ -120,7 +120,7 @@ pygame.display.set_caption("PFD")
 clock = pygame.time.Clock()
 
 # PFD Background
-pfdBackground = pygame.image.load("symbology/pfd_background.png")
+pfdBackground = pygame.image.load("pfd_symbology/pfd_background.png")
 
 # Colors
 WHITE = (255, 255, 255)
@@ -138,9 +138,13 @@ pfdAltFont = pygame.font.Font('fonts/OCR-B/OCR-B.ttf', 18)
 pfdHdgFont = pygame.font.Font('fonts/OCR-B/OCR-B.ttf', 12)
 
 # Attitude Indicator
-pfd_att_img = pygame.image.load("symbology/pfd_att.png")
-pfd_att_split_axis_pointer = pygame.image.load("symbology/pfd_split_axis_pointer.png")
+pfd_att_img = pygame.image.load("pfd_symbology/pfd_att.png")
 pfd_att_rect = pfd_att_img.get_rect()
+pfd_att_roll_pointer_img = pygame.image.load("pfd_symbology/pfd_att_roll_pointer.png")
+pfd_att_roll_pointer_rect = pfd_att_img.get_rect()
+pfd_att_split_axis_pointer = pygame.image.load("pfd_symbology/pfd_att_split_axis_pointer.png")
+pfd_att_roll_scale = pygame.image.load("pfd_symbology/pfd_att_roll_scale.png")
+
 
 
     
@@ -296,11 +300,22 @@ while True:
         # Displace image according to rotaton
     pfd_rotated_rect.x += round(math.cos(math.radians(90-drv_roll)) * pitch_offset * drv_pitch)
     pfd_rotated_rect.y += round(math.sin(math.radians(90-drv_roll)) * pitch_offset * drv_pitch)
-        # Draw image
+        # Draw att image
     screen.blit(pfd_rotated_img, pfd_rotated_rect)
+        # Roll Pointer
+        # Center pointer image
+    pfd_att_roll_pointer_rect = pfd_att_img.get_rect(center=(att_ctr_x, att_ctr_y))
+        # Rotate pointer image
+    pfd_att_roll_pointer_rotated_img = pygame.transform.rotate(pfd_att_roll_pointer_img, drv_roll)
+    pfd_att_roll_pointer_rotated_rect = pfd_att_roll_pointer_rotated_img.get_rect(center=pfd_att_rect.center)
+        # Draw pointer image
+    screen.blit(pfd_att_roll_pointer_rotated_img, pfd_att_roll_pointer_rotated_rect)   
     
     # Split Axis Pointer
     screen.blit(pfd_att_split_axis_pointer, (0, 0))
+
+    # Roll Scale
+    screen.blit(pfd_att_roll_scale, (0, 0))
     
     # PFD Background
     screen.blit(pfdBackground, (0, 0))
