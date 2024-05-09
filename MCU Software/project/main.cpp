@@ -499,12 +499,12 @@ void dataOut() {
 	
 	// IMU (g & dps)
 	Serial.print("%imu="); Serial.println(imuStatus);
-	Serial.print("$ax="); Serial.println(imu_ax);
-	Serial.print("$ay="); Serial.println(imu_ay);
-	Serial.print("$az="); Serial.println(imu_az);
-	Serial.print("$gx="); Serial.println(imu_gx);
-	Serial.print("$gy="); Serial.println(imu_gy);
-	Serial.print("$gz="); Serial.println(imu_gz);
+	Serial.print("$ax="); Serial.println(imu_ax, 3);
+	Serial.print("$ay="); Serial.println(imu_ay, 3);
+	Serial.print("$az="); Serial.println(imu_az, 3);
+	Serial.print("$gx="); Serial.println(imu_gx, 3);
+	Serial.print("$gy="); Serial.println(imu_gy, 3);
+	Serial.print("$gz="); Serial.println(imu_gz, 3);
 	
 	// Mag (deg)
 	Serial.print("%mag="); Serial.println(magStatus);

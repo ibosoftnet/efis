@@ -52,6 +52,7 @@ serialOpen()
 
 # Constanst
 constStdP = 101325.0	# pascal, ref: ICAO Doc 7488/3
+constg0 = 9.80665       # m/s^2, ref: ICAO Doc 7488/3
 
 # Incoming Data
 # General
@@ -140,11 +141,17 @@ pfdHdgFont = pygame.font.Font('fonts/OCR-B/OCR-B.ttf', 12)
 # Attitude Indicator
 pfd_att_img = pygame.image.load("pfd_symbology/pfd_att.png")
 pfd_att_rect = pfd_att_img.get_rect()
+
 pfd_att_roll_pointer_img = pygame.image.load("pfd_symbology/pfd_att_roll_pointer.png")
-pfd_att_roll_pointer_rect = pfd_att_img.get_rect()
+pfd_att_roll_pointer_amber_img = pygame.image.load("pfd_symbology/pfd_att_roll_pointer_amber.png")
+
+pfd_att_slipskid_white_img = pygame.image.load("pfd_symbology/pfd_att_slipskid_white.png")
+pfd_att_slipskid_white_filled_img = pygame.image.load("pfd_symbology/pfd_att_slipskid_white_filled.png")
+pfd_att_slipskid_amber_img = pygame.image.load("pfd_symbology/pfd_att_slipskid_amber.png")
+pfd_att_slipskid_amber_filled_img = pygame.image.load("pfd_symbology/pfd_att_slipskid_amber_filled.png")
+
 pfd_att_split_axis_pointer = pygame.image.load("pfd_symbology/pfd_att_split_axis_pointer.png")
 pfd_att_roll_scale = pygame.image.load("pfd_symbology/pfd_att_roll_scale.png")
-
 
 
     
@@ -291,7 +298,13 @@ while True:
     # Atitude Indicator
     att_ctr_x = 388
     att_ctr_y = 427
-    pitch_offset = 8.8  # Pixels per degree
+    pitch_offset = 8.8              # Pixels per degree
+    bank_amber_threshold = 35       # At or more
+    slipskid_offset = 100           # Pixels per g
+    slipskid_max_deflection = 20    # Pixels
+    slipskid_fill_threshold = 0.2   # g
+
+        # Attitude Image
         # Center image
     pfd_att_rect = pfd_att_img.get_rect(center=(att_ctr_x, att_ctr_y))
         # Rotate image
@@ -302,19 +315,76 @@ while True:
     pfd_rotated_rect.y += round(math.sin(math.radians(90-drv_roll)) * pitch_offset * drv_pitch)
         # Draw att image
     screen.blit(pfd_rotated_img, pfd_rotated_rect)
+        
         # Roll Pointer
+    if abs(drv_roll) <= bank_amber_threshold:
         # Center pointer image
-    pfd_att_roll_pointer_rect = pfd_att_img.get_rect(center=(att_ctr_x, att_ctr_y))
+        pfd_att_roll_pointer_rect = pfd_att_roll_pointer_img.get_rect(center=(att_ctr_x, att_ctr_y))
         # Rotate pointer image
-    pfd_att_roll_pointer_rotated_img = pygame.transform.rotate(pfd_att_roll_pointer_img, drv_roll)
-    pfd_att_roll_pointer_rotated_rect = pfd_att_roll_pointer_rotated_img.get_rect(center=pfd_att_rect.center)
+        pfd_att_roll_pointer_rotated_img = pygame.transform.rotate(pfd_att_roll_pointer_img, drv_roll)
+        pfd_att_roll_pointer_rotated_rect = pfd_att_roll_pointer_rotated_img.get_rect(center=pfd_att_rect.center)
         # Draw pointer image
-    screen.blit(pfd_att_roll_pointer_rotated_img, pfd_att_roll_pointer_rotated_rect)   
+        screen.blit(pfd_att_roll_pointer_rotated_img, pfd_att_roll_pointer_rotated_rect)
+    else:
+        # Center pointer image
+        pfd_att_roll_pointer_amber_rect = pfd_att_roll_pointer_amber_img.get_rect(center=(att_ctr_x, att_ctr_y))
+        # Rotate pointer image
+        pfd_att_roll_pointer_amber_rotated_img = pygame.transform.rotate(pfd_att_roll_pointer_amber_img, drv_roll)
+        pfd_att_roll_pointer_amber_rotated_rect = pfd_att_roll_pointer_amber_rotated_img.get_rect(center=pfd_att_rect.center)
+        # Draw pointer image
+        screen.blit(pfd_att_roll_pointer_amber_rotated_img, pfd_att_roll_pointer_amber_rotated_rect)   
     
-    # Split Axis Pointer
+    # Slip/Skid Indicator
+    if abs(drv_roll) <= bank_amber_threshold and abs(imu_ax) <= slipskid_fill_threshold:
+            # Center image
+        pfd_att_slipskid_white_rect = pfd_att_slipskid_white_img.get_rect(center=(att_ctr_x, att_ctr_y))
+            # Rotate image
+        pfd_att_slipskid_white_rotated_img = pygame.transform.rotate(pfd_att_slipskid_white_img, drv_roll)
+        pfd_att_slipskid_white_rotated_rect = pfd_att_slipskid_white_rotated_img.get_rect(center=pfd_att_slipskid_white_rect.center)
+            # Displace image according to rotaton
+        pfd_att_slipskid_white_rotated_rect.x += round((imu_ax*slipskid_offset*math.cos(math.radians(drv_roll))))
+        pfd_att_slipskid_white_rotated_rect.y -= round((imu_ax*slipskid_offset*math.sin(math.radians(drv_roll))))
+            # Draw att image
+        screen.blit(pfd_att_slipskid_white_rotated_img, pfd_att_slipskid_white_rotated_rect)
+    elif abs(drv_roll) <= bank_amber_threshold:
+            # Center image
+        pfd_att_slipskid_white_filled_rect = pfd_att_slipskid_white_filled_img.get_rect(center=(att_ctr_x, att_ctr_y))
+            # Rotate image
+        pfd_att_slipskid_white_filled_rotated_img = pygame.transform.rotate(pfd_att_slipskid_white_filled_img, drv_roll)
+        pfd_att_slipskid_white_filled_rotated_rect = pfd_att_slipskid_white_filled_rotated_img.get_rect(center=pfd_att_slipskid_white_filled_rect.center)
+            # Displace image according to rotaton
+        pfd_att_slipskid_white_filled_rotated_rect.x += round((imu_ax*slipskid_offset*math.cos(math.radians(drv_roll))))
+        pfd_att_slipskid_white_filled_rotated_rect.y -= round((imu_ax*slipskid_offset*math.sin(math.radians(drv_roll))))
+            # Draw att image
+        screen.blit(pfd_att_slipskid_white_filled_rotated_img, pfd_att_slipskid_white_filled_rotated_rect)
+    elif abs(imu_ax) <= slipskid_fill_threshold:
+             # Center image
+        pfd_att_slipskid_amber_rect = pfd_att_slipskid_amber_img.get_rect(center=(att_ctr_x, att_ctr_y))
+            # Rotate image
+        pfd_att_slipskid_amber_rotated_img = pygame.transform.rotate(pfd_att_slipskid_amber_img, drv_roll)
+        pfd_att_slipskid_amber_rotated_rect = pfd_att_slipskid_amber_rotated_img.get_rect(center=pfd_att_slipskid_amber_rect.center)
+            # Displace image according to rotaton
+        pfd_att_slipskid_amber_rotated_rect.x += round((imu_ax*slipskid_offset*math.cos(math.radians(drv_roll))))
+        pfd_att_slipskid_amber_rotated_rect.y -= round((imu_ax*slipskid_offset*math.sin(math.radians(drv_roll))))
+            # Draw att image
+        screen.blit(pfd_att_slipskid_amber_rotated_img, pfd_att_slipskid_amber_rotated_rect)
+    else:
+        # Center image
+        pfd_att_slipskid_amber_filled_rect = pfd_att_slipskid_amber_filled_img.get_rect(center=(att_ctr_x, att_ctr_y))
+            # Rotate image
+        pfd_att_slipskid_amber_filled_rotated_img = pygame.transform.rotate(pfd_att_slipskid_amber_filled_img, drv_roll)
+        pfd_att_slipskid_amber_filled_rotated_rect = pfd_att_slipskid_amber_filled_rotated_img.get_rect(center=pfd_att_slipskid_amber_filled_rect.center)
+            # Displace image according to rotaton
+        pfd_att_slipskid_amber_filled_rotated_rect.x += round((imu_ax*slipskid_offset*math.cos(math.radians(drv_roll))))
+        pfd_att_slipskid_amber_filled_rotated_rect.y -= round((imu_ax*slipskid_offset*math.sin(math.radians(drv_roll))))
+            # Draw att image
+        screen.blit(pfd_att_slipskid_amber_filled_rotated_img, pfd_att_slipskid_amber_filled_rotated_rect)
+
+
+        # Split Axis Pointer
     screen.blit(pfd_att_split_axis_pointer, (0, 0))
 
-    # Roll Scale
+        # Roll Scale
     screen.blit(pfd_att_roll_scale, (0, 0))
     
     # PFD Background
