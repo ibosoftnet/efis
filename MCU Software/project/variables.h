@@ -15,16 +15,30 @@
 #include "Adafruit_BMP085.h"
 #include "ms4525do.h"
 
+/* == Axis Bits for Inverting == */
+#define X_BIT 0b100
+#define Y_BIT 0b010
+#define Z_BIT 0b001
+
 /* == Com == */
 #define I2C_CLOCK 400000				// I2C clock in Hz
 #define SERIAL_BAUDRATE 115200			// Serial baudrate
 #define MYSERIAL_BAUDRATE 9600			// GNSS software serial baudrate
-SoftwareSerial mySerial(2, 3, 1);		// RX, TX; last argument should 1 for enabling inverse logic for high speed
+SoftwareSerial mySerial(5, 4, 1);		// RX, TX; last argument should 1 for enabling inverse logic for high speed
+
+/* == I2C Switch == */
+#define I2C_CHANNEL_1 0b00000010
+#define I2C_CHANNEL_2 0b00000100
+#define I2C_CHANNEL_3 0b00001000
+#define I2C_CHANNEL_4 0b00010000
+#define I2C_CHANNEL_5 0b00100000
+#define I2C_CHANNEL_6 0b01000000
+static const int8_t I2CSwAdress = 0x70;
 
 /* == RTC == */
-static const uint8_t RtcCePin = 7;		// DS1302 Chip Enable
-static const uint8_t RtcIoPin = 6;		// DS1302 Serial Data
-static const uint8_t RtcSclkPin = 5;	// DS1302 Clock
+static const uint8_t RtcCePin = 10;		// DS1302 Chip Enable
+static const uint8_t RtcIoPin = 9;		// DS1302 Serial Data
+static const uint8_t RtcSclkPin = 8;	// DS1302 Clock
 uint16_t RtcSetSec=0, RtcSetMin=0, RtcSedHr=0, RtcSetDay=1, RtcSetMonth=1, RtcSetYear=2000;
 
 /* == GNSS == */
@@ -67,8 +81,7 @@ char set_RtcTimeMessage[] = "2000-01-01T00:00:00Z";
 boolean set_altStd = 0;			// Altimeter STD setting
 double set_altStg = 101300.0;	// Altimeter setting value, standart at first initialization
 
-/* == I2C Switch == */
-static const int8_t I2CSwAdress = 0x70;
+
 
 /* == Sensors == */
 // A/G sensing
@@ -90,7 +103,9 @@ uint16_t tempOutPin;
 float temp_TATC;
 
 // IMU
-static const uint8_t IMUChannel = 1;
+static const uint8_t IMUChannel = I2C_CHANNEL_1;
+static const uint8_t imuSwitchYZ = 1;
+static const uint8_t imuInvertAxises = 0b100; // x, y, z
 boolean imuStatusPrev;
 boolean imuStatus = 0;
 static const int8_t imuAdress = 0x68; // Default
@@ -120,7 +135,9 @@ static const float imuGyroyErr = 0.0;
 static const float imuGyrozErr = 0.0;
 
 // Mag
-static const uint8_t MagChannel = 2;
+static const uint8_t MagChannel = I2C_CHANNEL_2;
+static const uint8_t magSwitchYZ = 1;
+static const uint8_t magInvertAxises = 0b100; // x, y, z
 boolean magStatusPrev;
 boolean magStatus = 0;
 static const int8_t magAdress = 0x0D;		// QMC5883
@@ -145,7 +162,7 @@ static const float magyErr = 0.0;
 static const float magzErr = 0.0;
 
 // Press
-static const uint8_t PressChannel = 8;
+static const uint8_t PressChannel = I2C_CHANNEL_5;
 boolean pressStatusPrev;
 boolean pressStatus = 0;
 Adafruit_BMP085 bmp;
@@ -153,7 +170,7 @@ static const uint8_t bmpOversampling = BMP085_ULTRAHIGHRES; // BMP085_ULTRAHIGHR
 double press_pressPa;
 
 // Diff
-static const uint8_t DiffChannel = 4;
+static const uint8_t DiffChannel = I2C_CHANNEL_6;
 boolean diffStatusPrev;
 boolean diffStatus = 0;
 static const int8_t diffAdress = 0x28; // Default
@@ -161,7 +178,7 @@ bfs::Ms4525do pres;
 //float diffDieTempC;
 float diff_pressPa;
 
-static const float diffPressPaErr = -4.0;
+static const float diffPressPaErr = -10.0;
 
 /* == Derived Values == */
 // Pitch

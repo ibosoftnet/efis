@@ -41,15 +41,25 @@ virtuabotixRTC RTC(RtcSclkPin, RtcIoPin, RtcCePin); // RTC
 // ############################################################################################# //
 
 void setup() {
+	/* Pin Initializations */
+	// Flow Control
+	// Flow control pins not used so they pulled to high for preventing their LEDs to be bright.
+	DDRD |= (1 << PD2) | (1 << PD3);	// Output
+	PORTD |= (1 << PD2) | (1 << PD3);	// High
+	// Status LED
+	DDRD |= 1 << PIND7;			// Output
+	// I2C Switch
+	DDRD |= (1 << PD6);			// Reset pin of the I2C switch IC must be high
+	PORTD |= (1 << PD6);		// Reset pin of the I2C switch IC must be high
+	// A/G sense
+	DDRC &= ~(1 << DDC1);		// A/G sense pin 1
+	PORTC |= (1 << PORTC1);		// A/G sense pin 1 pull-up
+	DDRC &= ~(1 << DDC2);		// A/G sense pin 2
+	PORTC |= (1 << PORTC2);		// A/G sense pin 2 pull-up
+	DDRC &= ~(1 << DDC3);		// A/G sense pin 3
+	PORTC |= (1 << PORTC3);		// A/G sense pin 3 pull-up
+	/* -------- */
 
-	// Blink at startup
-	DDRB |= 1 << PINB5;
-	for(i=0; i<6; i++) {
-		// turn LED on
-		PORTB ^= 1 << PINB5;
-		delay(150);
-	}
-	
 	// Com
 	Serial.begin(SERIAL_BAUDRATE);
 	mySerial.begin(MYSERIAL_BAUDRATE);
@@ -60,17 +70,6 @@ void setup() {
 	ADMUX = 0b01000000;		// 7,6 > REFS[1:0], 00 = AREF, 01 = AVcc + cap at AREF, 10 = reserved, 11 = int 1.1V ref + cap at AREF; 5 ADLAR, 1 = Align Left (ADC H), 0 = Align Right (ADC L) ; 4 none; 3,2,1,0 > MUX
 	ADCSRA = 0b10000111;
 	
-	/* Initialization */
-	// A/G sense
-	DDRB &= ~(1 << DDB0);		// A/G sense pin 1
-	PORTB |= (1 << PORTB0);		// A/G sense pin 1 pull-up
-	DDRB &= ~(1 << DDB1);		// A/G sense pin 2
-	PORTB |= (1 << PORTB1);		// A/G sense pin 2 pull-up
-	DDRB &= ~(1 << DDB2);		// A/G sense pin 3
-	PORTB |= (1 << PORTB2);		// A/G sense pin 3 pull-up
-	// I2C Switch
-	DDRB |= (1 << PB3);			// Reset pin of the I2C switch IC must be high
-	PORTB |= (1 << PB3);		// Reset pin of the I2C switch IC must be high
 	// IMU
 	selectI2CChannel(IMUChannel);
 	imuInit();
@@ -91,6 +90,14 @@ void setup() {
 	
 	// Delay after initialization
 	Serial.println("Initialization Ok!");
+	
+	// Blink at startup
+	for(i=0; i<6; i++) {
+		// turn LED on
+		PORTD ^= 1 << PIND7;
+		delay(150);
+	}
+	
 	delay(1000);
 }
 
@@ -99,9 +106,9 @@ void loop() {
 	/* Readings */
 	
 	// A/G sense
-	ag_onGnd1 = !(PINB & (1 << PINB0));
-	ag_onGnd2 = !(PINB & (1 << PINB1));
-	ag_onGnd3 = !(PINB & (1 << PINB2));
+	ag_onGnd1 = !(PINC & (1 << PINC1));
+	ag_onGnd2 = !(PINC & (1 << PINC2));
+	ag_onGnd3 = !(PINC & (1 << PINC3));
 	
 	// AOA
 	ADMUX &= 0b11110000;			// Reset first 4 bits from LSB of ADMUX
@@ -112,12 +119,12 @@ void loop() {
 	
 	// Temp
 	ADMUX &= 0b11110000;			// Reset first 4 bits from LSB of ADMUX
-	ADMUX |= 0b00000001;			// Select ADC1
+	ADMUX |= 0b00000110;			// Select ADC6
 	ADCSRA |= (1 << ADSC);			// Start reading
 	while (ADCSRA & (1 << ADSC));	// Wait for reading
 	tempRefPin = ADCW;
 	ADMUX &= 0b11110000;			// Reset first 4 bits from LSB of ADMUX
-	ADMUX |= 0b00000010;			// Select ADC2
+	ADMUX |= 0b00000111;			// Select ADC7
 	ADCSRA |= (1 << ADSC);			// Start reading
 	while (ADCSRA & (1 << ADSC));	// Wait for reading
 	tempOutPin = ADCW;
@@ -272,8 +279,16 @@ void imuRead() {
 	
 	// Data sequence is H-L-H-L-H-L so (Wire.read() << 8 | Wire.read())
 	imu_ax = (Wire.read() << 8 | Wire.read()) / imuAccelFactor + imuAccelxErr;
-	imu_ay = (Wire.read() << 8 | Wire.read()) / imuAccelFactor + imuAccelyErr;
-	imu_az = (Wire.read() << 8 | Wire.read()) / imuAccelFactor + imuAccelzErr;
+	switch (imuSwitchYZ) {
+		case 1:	
+			imu_az = (Wire.read() << 8 | Wire.read()) / imuAccelFactor + imuAccelzErr;
+			imu_ay = (Wire.read() << 8 | Wire.read()) / imuAccelFactor + imuAccelyErr;
+			break;
+		default:
+			imu_ay = (Wire.read() << 8 | Wire.read()) / imuAccelFactor + imuAccelyErr;
+			imu_az = (Wire.read() << 8 | Wire.read()) / imuAccelFactor + imuAccelzErr;
+			break;
+	}
 	
 	Wire.beginTransmission(imuAdress);
 	Wire.write(imuGyroDataStart);
@@ -282,9 +297,19 @@ void imuRead() {
 	
 	// Data sequence is H-L-H-L-H-L so (Wire.read() << 8 | Wire.read())
 	imu_gx = ((Wire.read() << 8 | Wire.read()) / imuGyroFactor) + imuGyroxErr;
-	imu_gy = ((Wire.read() << 8 | Wire.read()) / imuGyroFactor) + imuGyroyErr;
-	imu_gz = ((Wire.read() << 8 | Wire.read()) / imuGyroFactor) + imuGyrozErr;
-
+	switch (imuSwitchYZ) {
+		case 1:
+			imu_gz = ((Wire.read() << 8 | Wire.read()) / imuGyroFactor) + imuGyrozErr;
+			imu_gy = ((Wire.read() << 8 | Wire.read()) / imuGyroFactor) + imuGyroyErr;
+			break;
+		default:
+			imu_gy = ((Wire.read() << 8 | Wire.read()) / imuGyroFactor) + imuGyroyErr;
+			imu_gz = ((Wire.read() << 8 | Wire.read()) / imuGyroFactor) + imuGyrozErr;
+			break;
+	}
+	if (imuInvertAxises & X_BIT) {imu_ax = -(imu_ax); imu_gx = -(imu_gx);}
+	if (imuInvertAxises & Y_BIT) {imu_ay = -(imu_ay); imu_gy = -(imu_gy);}
+	if (imuInvertAxises & Z_BIT) {imu_az = -(imu_az); imu_gz = -(imu_gz);}
 }
 
 void magInit() {
@@ -326,9 +351,21 @@ void magRead() {
 		if (6 <= Wire.available()) {
 			// Data sequence is L-H-L-H-L-H so (Wire.read() | (Wire.read() << 8))
 			magx = (Wire.read() | (Wire.read() << 8)) + magxErr;
-			magy = (Wire.read() | (Wire.read() << 8)) + magyErr;
-			magz = (Wire.read() | (Wire.read() << 8)) + magzErr;
+			switch (magSwitchYZ) {
+				case 1:
+					magz = (Wire.read() | (Wire.read() << 8)) + magyErr;
+					magy = (Wire.read() | (Wire.read() << 8)) + magzErr;
+					break;
+				default:
+					magy = (Wire.read() | (Wire.read() << 8)) + magyErr;
+					magz = (Wire.read() | (Wire.read() << 8)) + magzErr;
+					break;
+			}
 		}
+		
+		if (magInvertAxises & X_BIT) {magx = -(magx);}
+		if (magInvertAxises & Y_BIT) {magy = -(magy);}
+		if (magInvertAxises & Z_BIT) {magz = -(magz);}
 
 		mag_hdg = 180 - atan2(magz, magx) * 57.2957795131; // PI/180=57.2957795131
 		
