@@ -105,6 +105,26 @@ void loop() {
 	timePrev = millis();
 	/* Readings */
 	
+	// Diff
+	selectI2CChannel(DiffChannel);
+	diffStatusPrev = diffStatus;
+	if (pres.Begin()) {diffStatus =  true;} else {diffStatus =  false;}
+	if (!pressStatusPrev & pressStatus) {pres.Begin();}
+	delayMicroseconds(10);
+	pres.Read();
+	diff_pressPa = pres.pres_pa() + diffPressPaErr;
+	//diffDieTempC = pres.die_temp_c();
+	delayMicroseconds(10);
+	
+	// Press
+	selectI2CChannel(PressChannel);
+	pressStatusPrev = pressStatus;
+	if (bmp.begin()) {pressStatus =  true;} else {pressStatus =  false;}
+	if (!pressStatusPrev & pressStatus) {bmp.begin(bmpOversampling);}
+	delayMicroseconds(10);
+	press_pressPa = bmp.readPressure();
+	delayMicroseconds(10);
+	
 	// A/G sense
 	ag_onGnd1 = !(PINC & (1 << PINC1));
 	ag_onGnd2 = !(PINC & (1 << PINC2));
@@ -130,13 +150,6 @@ void loop() {
 	tempOutPin = ADCW;
 	temp_TATC = ((float)(tempOutPin - tempRefPin)) * tempFactor;
 	
-	// IMU
-	selectI2CChannel(IMUChannel);
-	imuCheck();
-	delayMicroseconds(10);
-	imuRead();
-	delayMicroseconds(10);
-		
 	// Mag
 	selectI2CChannel(MagChannel);
 	magCheck();
@@ -144,25 +157,13 @@ void loop() {
 	magRead();
 	delayMicroseconds(10);
 	
-	// Press
-	selectI2CChannel(PressChannel);
-	pressStatusPrev = pressStatus;
-	if (bmp.begin()) {pressStatus =  true;} else {pressStatus =  false;}
-	if (!pressStatusPrev & pressStatus) {bmp.begin(bmpOversampling);}
+	// IMU
+	selectI2CChannel(IMUChannel);
+	imuCheck();
 	delayMicroseconds(10);
-	press_pressPa = bmp.readPressure();
-	delayMicroseconds(10);
-	
-	// Diff
-	selectI2CChannel(DiffChannel);
-	diffStatusPrev = diffStatus;
-	if (pres.Begin()) {diffStatus =  true;} else {diffStatus =  false;}
-	if (!pressStatusPrev & pressStatus) {pres.Begin();}
-	delayMicroseconds(10);
-	pres.Read();
-	diff_pressPa = pres.pres_pa() + diffPressPaErr;
-	//diffDieTempC = pres.die_temp_c();
+	imuRead();
 	//delayMicroseconds(10);
+	
 	
 	/* Derived Values */
 	// Pitch
@@ -367,7 +368,8 @@ void magRead() {
 		if (magInvertAxises & Y_BIT) {magy = -(magy);}
 		if (magInvertAxises & Z_BIT) {magz = -(magz);}
 
-		mag_hdg = 180 - atan2(magz, magx) * 57.2957795131; // PI/180=57.2957795131
+		mag_hdg = 180.0 - atan2(magz, magx) * 57.2957795131; // PI/180=57.2957795131
+		if (mag_hdg == 360.0) {mag_hdg = 0.0;}
 		
 	} else {
 		delay(magRetryInterval);
@@ -384,23 +386,23 @@ void magRead() {
 // ############################################################################################# //
 
 void readSettings() {
-	if (Serial.available()) {								// Seri portta veri var mý kontrol ediliyor
+	if (Serial.available()) {								// Seri portta veri var mi kontrol ediliyor
 		char c = Serial.read();								// Bir karakter okunuyor
 
-		if (c == '#') {										// Yeni bir mesajýn baþlangýcý kontrol ediliyor
-			settingsBufferIndex = 0;						// Buffer sýfýrlanýyor
-			newSettingsData = false;						// Yeni veri geldiði belirtiliyor
-			} else if (c == '+') {							// Mesajýn sonu kontrol ediliyor
-			settingsBuffer[settingsBufferIndex] = '\0';		// String sonlandýrýlýyor
-			processSettingsMessage();						// Mesaj iþleniyor
+		if (c == '#') {										// Yeni bir mesajin baþlangici kontrol ediliyor
+			settingsBufferIndex = 0;						// Buffer sifirlaniyor
+			newSettingsData = false;						// Yeni veri geldigi belirtiliyor
+			} else if (c == '+') {							// Mesajin sonu kontrol ediliyor
+			settingsBuffer[settingsBufferIndex] = '\0';		// String sonlandiriliyor
+			processSettingsMessage();						// Mesaj isleniyor
 			newSettingsData = true;							// Yeni veri geldiði belirtiliyor
-			} else {										// Mesajýn içeriði okunuyor
+			} else {										// Mesajin icerigi okunuyor
 			settingsBuffer[settingsBufferIndex] = c;		// Karakter buffer'a ekleniyor
 			settingsBufferIndex = (settingsBufferIndex + 1) % SETTINGS_BUFFER_SIZE; // Buffer indeksi güncelleniyor
 		}
 	}
 
-	// Yeni veri geldiyse, iþleme alýndýktan sonra buffer temizleniyor
+	// Yeni veri geldiyse, isleme alindiktan sonra buffer temizleniyor
 	if (newSettingsData) {
 		settingsBufferIndex = 0;
 		newSettingsData = false;
@@ -499,8 +501,9 @@ void parseGnssMessage() {
 
 void dataOut() {
 	/* Print */
-	Serial.print('#'); Serial.println(loopPrevElapsedTime);
-	
+	Serial.println('#'); 
+	Serial.print("/i="); Serial.println(loopPrevElapsedTime);
+
 	// RTC (ISO 8601 Date and time in UTC)
 	Serial.print('@'); // Indicates head of the data (not realated to ISO standart)
 	Serial.print(RTC.year);

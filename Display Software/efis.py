@@ -56,7 +56,7 @@ constg0 = 9.80665       # m/s^2, ref: ICAO Doc 7488/3
 
 # Incoming Data
 # General
-messageInterval = False  
+messageInterval = 0
 # Settings
 set_altStd = False 
 set_altStg = 101300.0
@@ -181,7 +181,11 @@ while True:
 
 
         # Veri işleme işaretlerine göre veriyi parçala
-        if incoming_data.startswith('!'):
+        if incoming_data.startswith('/'):
+            key, value = incoming_data[1:].split('=')
+            if key == 'i':
+                messageInterval = convert_int(value)        
+        elif incoming_data.startswith('!'):
             key, value = incoming_data[1:].split('=')
             if key == 'asd':
                 set_altStd = convert_bool(value)
@@ -411,9 +415,6 @@ while True:
     pfdAlt = pfdAltFont.render(format(round(drv_indAltFt)), True, WHITE)
     screen.blit(pfdAlt, (671, 410))
 
-    # Heading
-    pfdHdg = pfdHdgFont.render("{} H".format(round(mag_hdg)), True, BOEING_MAGENTA)
-    screen.blit(pfdHdg, (272, 795))
 
 
 

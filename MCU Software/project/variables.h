@@ -110,8 +110,8 @@ boolean imuStatusPrev;
 boolean imuStatus = 0;
 static const int8_t imuAdress = 0x68; // Default
 static const uint8_t imuConfigReg = 0x1A;
-static const uint8_t imuConfigValue = 0 << 3 | 2 << 0; // 7 -, 6 -, 543 EXT_SYNC_SET[2:0], 210 DLPF_CFG[2:0]
-static const uint8_t imuSampleRateReg = 0x19;
+static const uint8_t imuConfigValue = 0 << 3 | 6 << 0; // 7 -, 6 -, 543 EXT_SYNC_SET[2:0], 210 DLPF_CFG[2:0]
+static const uint8_t imuSampleRateReg = 0x19; // SMPLRT_DIV
 static const uint8_t imuSampleRateValue = 3; // Sample Rate = Gyroscope Output Rate / (1 + SMPLRT_DIV)
 static const uint8_t imuGyroDataStart = 0x43;
 static const uint8_t imuGyroConfigReg = 0x1B;
