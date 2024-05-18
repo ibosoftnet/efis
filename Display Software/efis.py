@@ -415,7 +415,9 @@ while True:
     pfdAlt = pfdAltFont.render(format(round(drv_indAltFt)), True, WHITE)
     screen.blit(pfdAlt, (671, 410))
 
-
+    # Heading
+    pfdHdg = pfdHdgFont.render(format(round(mag_hdg)), True, WHITE)
+    screen.blit(pfdHdg, (388, 50))
 
 
     pygame.display.flip()

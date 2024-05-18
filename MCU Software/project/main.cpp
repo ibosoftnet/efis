@@ -167,11 +167,11 @@ void loop() {
 	
 	/* Derived Values */
 	// Pitch
-	drv_pitch = atan2(imu_az, imu_ay) * 57.2957795131; // PI/180=57.2957795131
+	drv_pitch = atan2(imu_az, imu_ay) * constPiDiv180;
 	// Roll
-	drv_roll = atan2(imu_ax, imu_ay) * 57.2957795131; // PI/180=57.2957795131
+	drv_roll = atan2(imu_ax, imu_ay) * constPiDiv180;
 	// Turn Rate
-	drv_turnRate = -imu_gy / cos(drv_roll);
+	drv_turnRate = -imu_gy / cos(drv_roll*constPiDiv180);
 	// SAT
 	drv_SATC = temp_TATC; // su anlik donusum faktoru yok.
 	// Pressure ALT ft
@@ -368,8 +368,9 @@ void magRead() {
 		if (magInvertAxises & Y_BIT) {magy = -(magy);}
 		if (magInvertAxises & Z_BIT) {magz = -(magz);}
 
-		mag_hdg = 180.0 - atan2(magz, magx) * 57.2957795131; // PI/180=57.2957795131
-		if (mag_hdg == 360.0) {mag_hdg = 0.0;}
+		mag_hdg = atan2(magx, magz) * constPiDiv180;
+		
+		if (mag_hdg < 0) {mag_hdg += 360;}
 		
 	} else {
 		delay(magRetryInterval);

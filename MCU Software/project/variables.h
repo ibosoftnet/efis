@@ -68,6 +68,7 @@ static const float constM0 = 0.02896442;		// kg/mol, derived from ICAO Doc 7488/
 static const float constLb = -0.0065;			// K/m, std lapse rate, derived from ICAO Doc 7488/3, (0-11000m)
 static const float constYAir = 1.401;			// specific heat capacity ratio for air
 static const float constmtoft = 3.2808399;
+static const float constPiDiv180 = 57.2957795131; // PI/180=57.2957795131
 
 /* == Settings == */
 static const uint8_t SETTINGS_BUFFER_SIZE = 64;
