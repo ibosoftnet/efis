@@ -181,7 +181,7 @@ void loop() {
 	drvBaroVspdLoopCount++;
 	drvBaroVspdSumOfAltDiff =+ (drv_pressAltFt - drvPrevPressAlt);
 	if (drvBaroVspdLoopCount == drvBaroVspdLoopMeasureCount) {
-		drv_baroVspdFpm = 60000.0 * (drvBaroVspdSumOfAltDiff/(float)drvBaroVspdLoopMeasureCount) / (float)(millis() - drvBaroVspdTime);
+		drv_baroVspdFpm = 60000.0 * drvBaroVspdSumOfAltDiff / (float)(millis() - drvBaroVspdTime);
 		drvBaroVspdTime = millis();
 		drvBaroVspdLoopCount = 0;
 		drvBaroVspdSumOfAltDiff = 0.0;
@@ -191,6 +191,7 @@ void loop() {
 		drv_indAltFt = drv_pressAltFt;
 	} else {
 		drv_indAltFt = (constT0/constLb)*( pow(press_pressPa/set_altStg, (-constRun*constLb)/(constg0*constM0)) - 1.0 ) * constmtoft;
+		if (isinf(drv_indAltFt)) {drv_indAltFt=99999.999;}
 	}
 	// KIAS
 	drv_kias = 1.943845249221964 * sqrt( ((2*constYAir*press_pressPa)/((constYAir-1)*constStdAirD)) * ( pow( (press_pressPa+diff_pressPa)/press_pressPa, (constYAir-1.0)/constYAir ) - 1.0) );
@@ -221,6 +222,13 @@ void loop() {
 	readSettings();
 	timeNext = millis();
 	loopPrevElapsedTime = timeNext - timePrev;
+	if (loopPrevElapsedTime >= loopInterval) {
+		while ((timeNext - timePrev - loopPrevElapsedTime) <= loopOverflow) {
+			readGnss();
+			readSettings();
+			timeNext = millis();
+		}
+	}
 	while ((timeNext - timePrev) <= loopInterval) {
 		readGnss();
 		readSettings();

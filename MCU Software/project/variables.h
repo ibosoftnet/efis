@@ -52,7 +52,8 @@ char GNSS_GGA[64], GNSS_GSA[64], GNSS_RMC[64], GNSS_VTG[64];
 size_t i;
 unsigned long timePrev;
 unsigned long timeNext;
-static const uint16_t loopInterval = 100; // Loop interval in ms
+static const uint8_t loopInterval = 100; // Loop interval in ms
+static const uint8_t loopOverflow = 2; // Loop overflow limit when exceeding loop interval
 uint16_t loopPrevElapsedTime = 0;
 
 /* == Constants == */
