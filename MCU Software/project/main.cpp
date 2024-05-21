@@ -167,11 +167,14 @@ void loop() {
 	
 	/* Derived Values */
 	// Pitch
-	drv_pitch = atan2(imu_az, imu_ay) * constPiDiv180;
+	drv_pitch = atan2(imu_az, imu_ay) * const180OverPi;
 	// Roll
-	drv_roll = atan2(imu_ax, imu_ay) * constPiDiv180;
+	drv_roll = atan2(imu_ax, imu_ay) * const180OverPi;
 	// Turn Rate
-	drv_turnRate = -imu_gy / cos(drv_roll*constPiDiv180);
+	drv_turnRate = -imu_gy / cos(drv_roll/const180OverPi);
+	// Magnetic Heading
+	drv_magHdg = atan2((magx) * cos(drv_roll / const180OverPi) + (magz) * sin(drv_roll / const180OverPi), (magy) * cos(drv_pitch / const180OverPi) + (magx) * sin(drv_roll / const180OverPi) * sin(drv_pitch / const180OverPi) - (magz) * cos(drv_roll / const180OverPi) * sin(drv_pitch / const180OverPi)) * const180OverPi;
+	if (drv_magHdg < 0) {drv_magHdg += 360;}
 	// SAT
 	drv_SATC = temp_TATC; // su anlik donusum faktoru yok.
 	// Pressure ALT ft
@@ -375,11 +378,6 @@ void magRead() {
 		if (magInvertAxises & X_BIT) {magx = -(magx);}
 		if (magInvertAxises & Y_BIT) {magy = -(magy);}
 		if (magInvertAxises & Z_BIT) {magz = -(magz);}
-
-		mag_hdg = atan2(magx, magz) * constPiDiv180;
-		
-		if (mag_hdg < 0) {mag_hdg += 360;}
-		
 	} else {
 		delay(magRetryInterval);
 		Wire.requestFrom(magAdress, 1);
@@ -557,8 +555,7 @@ void dataOut() {
 	
 	// Mag (deg)
 	Serial.print("%mag="); Serial.println(magStatus);
-	Serial.print("$mhd="); Serial.println(mag_hdg);
-	
+
 	// Press (Pa)
 	Serial.print("%prs="); Serial.println(pressStatus);
 	Serial.print("$prs="); Serial.println(press_pressPa, 1);
@@ -574,6 +571,8 @@ void dataOut() {
 	Serial.print("&rol="); Serial.println(drv_roll);
 	// Turn Rate (dps)
 	Serial.print("&trn="); Serial.println(drv_turnRate);
+	// Magnetic Heading (deg)
+	Serial.print("&mhd="); Serial.println(drv_magHdg);
 	// SAT (celsius)
 	Serial.print("&sat="); Serial.println(drv_SATC);
 	// Preessure Alt (ft)

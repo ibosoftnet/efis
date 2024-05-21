@@ -69,7 +69,7 @@ static const float constM0 = 0.02896442;		// kg/mol, derived from ICAO Doc 7488/
 static const float constLb = -0.0065;			// K/m, std lapse rate, derived from ICAO Doc 7488/3, (0-11000m)
 static const float constYAir = 1.401;			// specific heat capacity ratio for air
 static const float constmtoft = 3.2808399;
-static const float constPiDiv180 = 57.2957795131; // PI/180=57.2957795131
+static const float const180OverPi = 57.2957795131; // PI/180=57.2957795131
 
 /* == Settings == */
 static const uint8_t SETTINGS_BUFFER_SIZE = 64;
@@ -146,7 +146,7 @@ static const int8_t magAdress = 0x0D;		// QMC5883
 static const uint8_t magControlReg = 0x09;	// Mode Control Register
 static const uint8_t magControlValue =
 0b00000001 | // Mode_Standby 0b00000000, Mode_Continuous 0b00000001
-0b00001000 | // 10 Hz 0b00000000, 50 Hz 0b00000100, 100 Hz 0b00001000, 200 Hz 0b00001100
+0b00001100 | // 10 Hz 0b00000000, 50 Hz 0b00000100, 100 Hz 0b00001000, 200 Hz 0b00001100
 0b00010000 | // 2G 0b00000000, 8G 0b00010000
 0b00000000 ; // 64 0b11000000, 128 0b10000000, 256 0b01000000, 512 0b00000000
 static const uint8_t magSRReg = 0x0B;		// Define Set/Reset period
@@ -156,7 +156,6 @@ static const uint8_t magDataReadyReg = 0x06;
 static const uint8_t magDataStart = 0x00;	// QMC5883
 static const uint8_t magRetryInterval = 2;	// ms
 float mag_x, mag_y, mag_z;
-float mag_hdg;
 int magx, magy, magz;
 
 static const float magxErr = 0.0;
@@ -189,6 +188,8 @@ float drv_pitch;
 float drv_roll;
 // Turn Rate
 float drv_turnRate;
+// Magnetic Heading
+float drv_magHdg;
 // SAT
 float drv_SATC;
 // Pressure Alt ft
