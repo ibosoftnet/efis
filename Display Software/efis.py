@@ -23,7 +23,7 @@ pfdTick = config.getint('PFD', 'TICK')
 
 
 # Logging
-logging.basicConfig(filename='status.log', level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(filename='logs.log', level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 logging.info("--------------------")
 logging.info("EFIS Started")
