@@ -1,2 +1,2 @@
-py efis.py
+py main.py
 pause
