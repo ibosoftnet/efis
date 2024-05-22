@@ -40,7 +40,8 @@ print("--------------------")
 # Constanst
 constStdP = 101325.0	# pascal, ref: ICAO Doc 7488/3
 constg0 = 9.80665       # m/s^2, ref: ICAO Doc 7488/3
-hpaToInhg = 0.02952998057228486     # 1 hPa = ? inhg
+constHpaToInhg = 0.02952998057228486     # 1 hPa = ? inhg
+constmToNM = 0.0005399568034557235       # 1 m = ? NM
 
 # Variables
 transition_buffer_trl_ta = False   # For determining if airplane at between transition altitude and level
@@ -118,6 +119,26 @@ def serialOpen():
     except serial.SerialException as e:
         logging.error("Serial port error:", str(e))
         print("Serial port error:", str(e))
+
+# Draw Arrow
+def draw_arrow(screen, color, start, end, thickness):
+    pygame.draw.line(screen, color, start, end, thickness)
+    
+    # Ok ucunu çizmek için yön ve açı hesaplamaları
+    rotation = math.atan2(start[1] - end[1], end[0] - start[0]) 
+    arrow_length = 10
+    arrow_angle = math.pi / 6
+
+    # Ok ucunun sağ tarafı
+    right_arrow_x = end[0] + arrow_length * math.cos(rotation + arrow_angle)
+    right_arrow_y = end[1] + arrow_length * math.sin(rotation + arrow_angle)
+    
+    # Ok ucunun sol tarafı
+    left_arrow_x = end[0] + arrow_length * math.cos(rotation - arrow_angle)
+    left_arrow_y = end[1] + arrow_length * math.sin(rotation - arrow_angle)
+    
+    pygame.draw.line(screen, color, end, (right_arrow_x, right_arrow_y), thickness)
+    pygame.draw.line(screen, color, end, (left_arrow_x, left_arrow_y), thickness)
     
 # --------------------
 # Shared Data
@@ -320,9 +341,9 @@ class App(tk.Tk):
                     value = int(self.altimeter_entry.get())
                     if 940 <= value <= 1050:
                         self.shared_data.menu_pfd_altStgHpa = round(value)
-                        self.shared_data.menu_pfd_altStgInHg = round(value*hpaToInhg, 2)
+                        self.shared_data.menu_pfd_altStgInHg = round(value*constHpaToInhg, 2)
                         self.menu_pfd_altStgHpa.set(round(value))
-                        self.menu_pfd_altStgInHg.set(round(value*hpaToInhg, 2))
+                        self.menu_pfd_altStgInHg.set(round(value*constHpaToInhg, 2))
                     else:
                         print("Invalid hPa value!")
                 except ValueError:
@@ -332,9 +353,9 @@ class App(tk.Tk):
                     value = float(self.altimeter_entry.get())
                     if 27.50 <= value <= 31.50:
                         self.shared_data.menu_pfd_altStgInHg = round(value, 2)
-                        self.shared_data.menu_pfd_altStgHpa = round(value/hpaToInhg)
+                        self.shared_data.menu_pfd_altStgHpa = round(value/constHpaToInhg)
                         self.menu_pfd_altStgInHg.set(round(value, 2))
-                        self.menu_pfd_altStgHpa.set(round(value/hpaToInhg))
+                        self.menu_pfd_altStgHpa.set(round(value/constHpaToInhg))
                     else:
                         print("Invalid inHg value!")
                 except ValueError:
@@ -375,7 +396,6 @@ gui_thread.daemon = True
 gui_thread.start()
 
 # --------------------
-
 # Display
 SCREEN_WIDTH = 858
 SCREEN_HEIGHT = 857
@@ -399,13 +419,32 @@ BOEING_GREEN = (0, 255, 0)
 BOEING_AMBER = (255, 179, 0)
 BOEING_RED = (252, 0, 0)
 
+# Flags
+    # Positions related to top left corner
+pfd_flag_alt = pygame.image.load("pfd_flags/pfd_flag_alt.png")
+pfd_flag_alt_pos = (666, 373)
+pfd_flag_att = pygame.image.load("pfd_flags/pfd_flag_att.png")
+pfd_flag_att_pos = (361, 350)
+pfd_flag_att_border = pygame.image.load("pfd_flags/pfd_flag_att_border.png")
+pfd_flag_att_border_pos = (0, 0)
+pfd_flag_hdg = pygame.image.load("pfd_flags/pfd_flag_hdg.png")
+pfd_flag_hdg_pos = (358, 815)
+pfd_flag_no_v_spd = pygame.image.load("pfd_flags/pfd_flag_no_v_spd.png")
+pfd_flag_no_v_spd_pos = (141, 265)
+pfd_flag_spd = pygame.image.load("pfd_flags/pfd_flag_spd.png")
+pfd_flag_spd_pos = (88,373)
+pfd_flag_vert = pygame.image.load("pfd_flags/pfd_flag_vert.png")
+pfd_flag_vert_pos = (789, 359)
+
 # Fonts
 pfdSpdFont = pygame.font.Font('fonts/OCR-B/OCR-B.ttf', 24)
 pfdHdgFont = pygame.font.Font('fonts/OCR-B/OCR-B.ttf', 12)
 pfdVspdFont = pygame.font.Font('fonts/OCR-B/OCR-B.ttf', 14)
 
-pfdSpdFont = pygame.font.Font('fonts/OCR-B/OCR-B.ttf', 18)
+pfdSpdFont = pygame.font.Font('fonts/OCR-B/OCR-B.ttf', 20)
 pfdSpdTapeFont = pygame.font.Font('fonts/OCR-B/OCR-B.ttf', 16)
+
+pfdMachFont = pygame.font.Font('fonts/OCR-B/OCR-B.ttf', 20)
 
 pfdAltFont = pygame.font.Font('fonts/OCR-B/OCR-B.ttf', 18)
 pfdAltTapeFont = pygame.font.Font('fonts/OCR-B/OCR-B.ttf', 14)
@@ -435,14 +474,608 @@ pfd_att_roll_scale = pygame.image.load("pfd_symbology/pfd_att_roll_scale.png")
 
 # Vertical Speed Background
 pfd_vspd_background = pygame.image.load("pfd_symbology/pfd_vspd_background.png")
-    
+
+# Pointers
+pfd_spd_pointer = pygame.image.load("pfd_symbology/pfd_spd_pointer.png")
+pfd_alt_pointer = pygame.image.load("pfd_symbology/pfd_alt_pointer.png")
+pfd_compass_pointer = pygame.image.load("pfd_symbology/pfd_compass_pointer.png")
+
+# Variables
+    # Atitude Indicator
+att_ctr_x = 388
+att_ctr_y = 427
+pitch_offset = 8.8              # Pixels per degree
+bank_amber_threshold = 35       # At or more
+slipskid_offset = 250           # Pixels per g
+slipskid_fill_threshold = 0.2   # g
+    # Attitude Border
+border_corner1 = (180, 190)     # Top left corner
+border_corner2 = (600, 640)     # Bottom right corner
+    # Speed
+spd_min = 30
+spd_max = 220
+spd_pointer_y = 427     # px
+spd_line_x_left = 128   # px
+spd_line_x_right = 152  # px
+spd_line_width = 3      # px
+spd_div = 50            # px
+spd_div_kts = 10        # kts
+spd_kts_to_px = 10/50   # 0.2
+spd_lapse = 250         # px, full scale 500
+spd_text_x = 118        # px, aligned to right
+spd_text_y_offset = 1   # -px
+pfd_spd_pointer_pos = (39,385)
+pfdSpdTextPos = (47, 409)
+    # Mach Indicator
+mach_transition = 100       # kts
+pfdMachTextPos = (71, 770)
+    # Altitude
+alt_min = -2000
+alt_max = 36000
+alt_pointer_y = 427     # px
+alt_line_x_left = 625   # px
+alt_line_x_right = 649  # px
+alt_line_width = 3      # px
+alt_div = 75            # px
+alt_div_ft = 100        # ft
+alt_ft_to_px = 100/75   # 1.33...
+alt_lapse = 300         # px, full scale 600
+alt_text_x = 653        # px
+alt_text_y_offset = -12 # -px
+pfd_alt_pointer_pos = (647,385)
+pfdAltTextPos = (671, 410)
+    # Verical Speed Line
+vspd_line_ctr_x_pos = 857       # px
+vspd_line_ctr_y_pos = 427       # px
+vspd_line_tie_x_pos = 778       # px
+vspd_line_width = 5             # px
+vspd_fpmPerPxTo1000 = 12.19     # fpm per px between 0 - 1000
+vspd_fpmPerPxTo2000 = 16.66     # fpm per px between 1000 - 2000
+vspd_fpmPerPxTo6000 = 100.0     # fpm per px between 2000 - 6000
+    # Compass
+pfdCompass_radius = 257             # Pusula yarıçapı      
+pfdCompass_center_x = 390           # Pusula merkezinin x konumu
+pfdCompass_center_y = 968           # Pusula merkezinin y konumu
+pfdCompass_short_tick_length = 15   # Kısa çizgi uzunluğu
+pfdCompass_long_tick_length = 25    # Uzun çizgi uzunluğu
+pfdCompass_degree_line_thickness = 4  # Pusula derece çizgilerinin kalınlığı
+pfd_compass_pointer_pos = (374,690)
+    # Speed Trend Arrow
+accel_arrowX = 128          # px
+accel_arrowCtrY = 427       # px
+accel_arrowLimYUp = 318     # px
+accel_arrowLimYDown = 319   # px
+accel_arrowDeathZone = 10   # px
+accel_arrowThickness = 4    # px
+accel_factor = 100
+
+# Performance and Limitations
+
 # --------------------
 
 # Main Loop
 while True:
     with shared_data.lock:  # Shared variables between threads
-    
-        # Process incoming data
+
+        # Display
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+        
+        # Background
+        screen.fill(BLACK)
+
+        # Attitude Indicator
+        if imuStatus:
+                # Attitude Image
+                # Center image
+            pfd_att_rect = pfd_att_img.get_rect(center=(att_ctr_x, att_ctr_y))
+                # Rotate image
+            pfd_rotated_img = pygame.transform.rotate(pfd_att_img, drv_roll)
+            pfd_rotated_rect = pfd_rotated_img.get_rect(center=pfd_att_rect.center)
+                # Displace image according to rotaton
+            if -90 <= drv_pitch and drv_pitch < 90:
+                pfd_rotated_rect.x += round(math.cos(math.radians(90-drv_roll)) * pitch_offset * drv_pitch)
+                pfd_rotated_rect.y += round(math.sin(math.radians(90-drv_roll)) * pitch_offset * drv_pitch)
+            elif 90 <= drv_pitch and drv_pitch < 180:
+                pfd_rotated_rect.x += round(math.cos(math.radians(90-drv_roll)) * pitch_offset * (drv_pitch-180))
+                pfd_rotated_rect.y += round(math.sin(math.radians(90-drv_roll)) * pitch_offset * (drv_pitch-180))
+            else:
+                pfd_rotated_rect.x += round(math.cos(math.radians(90-drv_roll)) * pitch_offset * (drv_pitch+180))
+                pfd_rotated_rect.y += round(math.sin(math.radians(90-drv_roll)) * pitch_offset * (drv_pitch+180))
+            # Draw att image
+            screen.blit(pfd_rotated_img, pfd_rotated_rect)
+                
+                # Roll Pointer
+            if abs(drv_roll) < bank_amber_threshold:
+                # Center pointer image
+                pfd_att_roll_pointer_rect = pfd_att_roll_pointer_img.get_rect(center=(att_ctr_x, att_ctr_y))
+                # Rotate pointer image
+                pfd_att_roll_pointer_rotated_img = pygame.transform.rotate(pfd_att_roll_pointer_img, drv_roll)
+                pfd_att_roll_pointer_rotated_rect = pfd_att_roll_pointer_rotated_img.get_rect(center=pfd_att_rect.center)
+                # Draw pointer image
+                screen.blit(pfd_att_roll_pointer_rotated_img, pfd_att_roll_pointer_rotated_rect)
+            else:
+                # Center pointer image
+                pfd_att_roll_pointer_amber_rect = pfd_att_roll_pointer_amber_img.get_rect(center=(att_ctr_x, att_ctr_y))
+                # Rotate pointer image
+                pfd_att_roll_pointer_amber_rotated_img = pygame.transform.rotate(pfd_att_roll_pointer_amber_img, drv_roll)
+                pfd_att_roll_pointer_amber_rotated_rect = pfd_att_roll_pointer_amber_rotated_img.get_rect(center=pfd_att_rect.center)
+                # Draw pointer image
+                screen.blit(pfd_att_roll_pointer_amber_rotated_img, pfd_att_roll_pointer_amber_rotated_rect)   
+            
+            # Slip/Skid Indicator
+            if abs(drv_roll) < bank_amber_threshold:
+                if abs(imu_ax) <= slipskid_fill_threshold:
+                        # Center image
+                    pfd_att_slipskid_white_rect = pfd_att_slipskid_white_img.get_rect(center=(att_ctr_x, att_ctr_y))
+                        # Rotate image
+                    pfd_att_slipskid_white_rotated_img = pygame.transform.rotate(pfd_att_slipskid_white_img, drv_roll)
+                    pfd_att_slipskid_white_rotated_rect = pfd_att_slipskid_white_rotated_img.get_rect(center=pfd_att_slipskid_white_rect.center)
+                        # Displace image according to rotaton
+                    pfd_att_slipskid_white_rotated_rect.x += round((imu_ax*slipskid_offset*math.cos(math.radians(drv_roll))))
+                    pfd_att_slipskid_white_rotated_rect.y -= round((imu_ax*slipskid_offset*math.sin(math.radians(drv_roll))))
+                        # Draw att image
+                    screen.blit(pfd_att_slipskid_white_rotated_img, pfd_att_slipskid_white_rotated_rect)
+                else:
+                        # Center image
+                    pfd_att_slipskid_white_filled_rect = pfd_att_slipskid_white_filled_img.get_rect(center=(att_ctr_x, att_ctr_y))
+                        # Rotate image
+                    pfd_att_slipskid_white_filled_rotated_img = pygame.transform.rotate(pfd_att_slipskid_white_filled_img, drv_roll)
+                    pfd_att_slipskid_white_filled_rotated_rect = pfd_att_slipskid_white_filled_rotated_img.get_rect(center=pfd_att_slipskid_white_filled_rect.center)
+                        # Displace image according to rotaton
+                    pfd_att_slipskid_white_filled_rotated_rect.x += round((take_sign(imu_ax)*slipskid_fill_threshold*slipskid_offset*math.cos(math.radians(drv_roll))))
+                    pfd_att_slipskid_white_filled_rotated_rect.y -= round((take_sign(imu_ax)*slipskid_fill_threshold*slipskid_offset*math.sin(math.radians(drv_roll))))
+                        # Draw att image
+                    screen.blit(pfd_att_slipskid_white_filled_rotated_img, pfd_att_slipskid_white_filled_rotated_rect)
+            else:
+                if abs(imu_ax) <= slipskid_fill_threshold:
+                        # Center image
+                    pfd_att_slipskid_amber_rect = pfd_att_slipskid_amber_img.get_rect(center=(att_ctr_x, att_ctr_y))
+                        # Rotate image
+                    pfd_att_slipskid_amber_rotated_img = pygame.transform.rotate(pfd_att_slipskid_amber_img, drv_roll)
+                    pfd_att_slipskid_amber_rotated_rect = pfd_att_slipskid_amber_rotated_img.get_rect(center=pfd_att_slipskid_amber_rect.center)
+                        # Displace image according to rotaton
+                    pfd_att_slipskid_amber_rotated_rect.x += round((imu_ax*slipskid_offset*math.cos(math.radians(drv_roll))))
+                    pfd_att_slipskid_amber_rotated_rect.y -= round((imu_ax*slipskid_offset*math.sin(math.radians(drv_roll))))
+                        # Draw att image
+                    screen.blit(pfd_att_slipskid_amber_rotated_img, pfd_att_slipskid_amber_rotated_rect)
+                else:
+                    # Center image
+                    pfd_att_slipskid_amber_filled_rect = pfd_att_slipskid_amber_filled_img.get_rect(center=(att_ctr_x, att_ctr_y))
+                        # Rotate image
+                    pfd_att_slipskid_amber_filled_rotated_img = pygame.transform.rotate(pfd_att_slipskid_amber_filled_img, drv_roll)
+                    pfd_att_slipskid_amber_filled_rotated_rect = pfd_att_slipskid_amber_filled_rotated_img.get_rect(center=pfd_att_slipskid_amber_filled_rect.center)
+                        # Displace image according to rotaton
+                    pfd_att_slipskid_amber_filled_rotated_rect.x += round((take_sign(imu_ax)*slipskid_fill_threshold*slipskid_offset*math.cos(math.radians(drv_roll))))
+                    pfd_att_slipskid_amber_filled_rotated_rect.y -= round((take_sign(imu_ax)*slipskid_fill_threshold*slipskid_offset*math.sin(math.radians(drv_roll))))
+                        # Draw att image
+                    screen.blit(pfd_att_slipskid_amber_filled_rotated_img, pfd_att_slipskid_amber_filled_rotated_rect)
+
+                # Split Axis Pointer
+            screen.blit(pfd_att_split_axis_pointer, (0, 0))
+
+                # Roll Scale
+            screen.blit(pfd_att_roll_scale, (0, 0))            
+                    
+        # Attitude Black Border Mask:
+                # Kareyi tanımla
+        border_left = min(border_corner1[0], border_corner2[0])
+        border_right = max(border_corner1[0], border_corner2[0])
+        border_top = min(border_corner1[1], border_corner2[1])
+        border_bottom = max(border_corner1[1], border_corner2[1])
+            # Kare alanı dışındaki bölgeleri siyaha boya
+            # Üst bölge
+        pygame.draw.rect(screen, (0, 0, 0), (0, 0, SCREEN_WIDTH, border_top))
+            # Alt bölge
+        pygame.draw.rect(screen, (0, 0, 0), (0, border_bottom, SCREEN_WIDTH, SCREEN_HEIGHT - border_bottom))
+            # Sol bölge
+        pygame.draw.rect(screen, (0, 0, 0), (0, border_top, border_left, border_bottom - border_top))
+            # Sağ bölge
+        pygame.draw.rect(screen, (0, 0, 0), (border_right, border_top, SCREEN_WIDTH - border_right, border_bottom - border_top))
+
+        # Speed Tape
+        if diffStatus:
+            pygame.draw.rect(screen, BOEING_GRAY, pygame.Rect(45, 105, 110, 645))  # Background; x, y, width, height
+
+            spd_tape_value = drv_kias
+            if spd_tape_value < spd_min:
+                spd_tape_value = spd_min
+            if spd_tape_value > spd_max:
+                spd_tape_value = spd_max
+
+            if abs(spd_tape_value/spd_kts_to_px) < spd_lapse:
+                spd_line_section = 1
+            else:
+                spd_line_section = math.ceil((abs(spd_tape_value)/spd_kts_to_px-spd_lapse)/(2*spd_lapse))+1
+            
+            if spd_tape_value < 0:
+                spd_line_section = 1
+                spd_tape_value = 0
+
+            spd_line_ref_y = round( spd_pointer_y + (spd_tape_value/spd_kts_to_px) - (spd_line_section-1)*2*spd_lapse)
+            spd_ref_spd = (spd_line_section-1)*round(2*spd_lapse*spd_kts_to_px, -1)
+
+            if (spd_min <= int(spd_ref_spd-10*spd_div_kts) <= spd_max):
+                pygame.draw.line(screen, WHITE, (spd_line_x_left, spd_line_ref_y+spd_div*10), (spd_line_x_right, spd_line_ref_y+spd_div*10), spd_line_width)
+                spd_text = pfdSpdTapeFont.render(format(int(spd_ref_spd-10*spd_div_kts)), True, WHITE)
+                spd_text_rect = spd_text.get_rect(right=spd_text_x, centery=spd_line_ref_y+spd_text_y_offset+spd_div*10)
+                screen.blit(spd_text, spd_text_rect)
+            if (spd_min <= int(spd_ref_spd-9*spd_div_kts) <= spd_max):  
+                pygame.draw.line(screen, WHITE, (spd_line_x_left, spd_line_ref_y+spd_div*9), (spd_line_x_right, spd_line_ref_y+spd_div*9), spd_line_width)
+                # spd_text = pfdSpdTapeFont.render(format(int(spd_ref_spd-9*spd_div_kts)), True, WHITE)
+                # spd_text_rect = spd_text.get_rect(right=spd_text_x, centery=spd_line_ref_y+spd_text_y_offset+spd_div*9)
+                # screen.blit(spd_text, spd_text_rect)
+            if (spd_min <= int(spd_ref_spd-8*spd_div_kts) <= spd_max):      
+                pygame.draw.line(screen, WHITE, (spd_line_x_left, spd_line_ref_y+spd_div*8), (spd_line_x_right, spd_line_ref_y+spd_div*8), spd_line_width)
+                spd_text = pfdSpdTapeFont.render(format(int(spd_ref_spd-8*spd_div_kts)), True, WHITE)
+                spd_text_rect = spd_text.get_rect(right=spd_text_x, centery=spd_line_ref_y+spd_text_y_offset+spd_div*8)
+                screen.blit(spd_text, spd_text_rect)   
+            if (spd_min <= int(spd_ref_spd-7*spd_div_kts) <= spd_max):    
+                pygame.draw.line(screen, WHITE, (spd_line_x_left, spd_line_ref_y+spd_div*7), (spd_line_x_right, spd_line_ref_y+spd_div*7), spd_line_width)
+                # spd_text = pfdSpdTapeFont.render(format(int(spd_ref_spd-7*spd_div_kts)), True, WHITE)
+                # spd_text_rect = spd_text.get_rect(right=spd_text_x, centery=spd_line_ref_y+spd_text_y_offset+spd_div*7)
+                # screen.blit(spd_text, spd_text_rect)
+            if (spd_min <= int(spd_ref_spd-6*spd_div_kts) <= spd_max):
+                pygame.draw.line(screen, WHITE, (spd_line_x_left, spd_line_ref_y+spd_div*6), (spd_line_x_right, spd_line_ref_y+spd_div*6), spd_line_width)
+                spd_text = pfdSpdTapeFont.render(format(int(spd_ref_spd-6*spd_div_kts)), True, WHITE)
+                spd_text_rect = spd_text.get_rect(right=spd_text_x, centery=spd_line_ref_y+spd_text_y_offset+spd_div*6)
+                screen.blit(spd_text, spd_text_rect)
+            if (spd_min <= int(spd_ref_spd-5*spd_div_kts) <= spd_max):  
+                pygame.draw.line(screen, WHITE, (spd_line_x_left, spd_line_ref_y+spd_div*5), (spd_line_x_right, spd_line_ref_y+spd_div*5), spd_line_width)
+                # spd_text = pfdSpdTapeFont.render(format(int(spd_ref_spd-5*spd_div_kts)), True, WHITE)
+                # spd_text_rect = spd_text.get_rect(right=spd_text_x, centery=spd_line_ref_y+spd_text_y_offset+spd_div*5)
+                # screen.blit(spd_text, spd_text_rect)
+            if (spd_min <= int(spd_ref_spd-4*spd_div_kts) <= spd_max):
+                pygame.draw.line(screen, WHITE, (spd_line_x_left, spd_line_ref_y+spd_div*4), (spd_line_x_right, spd_line_ref_y+spd_div*4), spd_line_width)
+                spd_text = pfdSpdTapeFont.render(format(int(spd_ref_spd-4*spd_div_kts)), True, WHITE)
+                spd_text_rect = spd_text.get_rect(right=spd_text_x, centery=spd_line_ref_y+spd_text_y_offset+spd_div*4)
+                screen.blit(spd_text, spd_text_rect)
+            if (spd_min <= int(spd_ref_spd-3*spd_div_kts) <= spd_max):
+                pygame.draw.line(screen, WHITE, (spd_line_x_left, spd_line_ref_y+spd_div*3), (spd_line_x_right, spd_line_ref_y+spd_div*3), spd_line_width)
+                # spd_text = pfdSpdTapeFont.render(format(int(spd_ref_spd-3*spd_div_kts)), True, WHITE)
+                # spd_text_rect = spd_text.get_rect(right=spd_text_x, centery=spd_line_ref_y+spd_text_y_offset+spd_div*3)
+                # screen.blit(spd_text, spd_text_rect)
+            if (spd_min <= int(spd_ref_spd-2*spd_div_kts) <= spd_max): 
+                pygame.draw.line(screen, WHITE, (spd_line_x_left, spd_line_ref_y+spd_div*2), (spd_line_x_right, spd_line_ref_y+spd_div*2), spd_line_width)
+                spd_text = pfdSpdTapeFont.render(format(int(spd_ref_spd-2*spd_div_kts)), True, WHITE)
+                spd_text_rect = spd_text.get_rect(right=spd_text_x, centery=spd_line_ref_y+spd_text_y_offset+spd_div*2)
+                screen.blit(spd_text, spd_text_rect)
+            if (spd_min <= int(spd_ref_spd-spd_div_kts) <= spd_max):
+                pygame.draw.line(screen, WHITE, (spd_line_x_left, spd_line_ref_y+spd_div), (spd_line_x_right, spd_line_ref_y+spd_div), spd_line_width)
+                # spd_text = pfdSpdTapeFont.render(format(int(spd_ref_spd-spd_div_kts)), True, WHITE)
+                # spd_text_rect = spd_text.get_rect(right=spd_text_x, centery=spd_line_ref_y+spd_text_y_offset+spd_div)
+                # screen.blit(spd_text, spd_text_rect)
+            
+            if (spd_min <= int(spd_ref_spd) <= spd_max):
+                pygame.draw.line(screen, WHITE, (spd_line_x_left, spd_line_ref_y), (spd_line_x_right, spd_line_ref_y), spd_line_width)  # Middle Line
+                spd_text = pfdSpdTapeFont.render(format(int(spd_ref_spd)), True, WHITE)
+                spd_text_rect = spd_text.get_rect(right=spd_text_x, centery=spd_line_ref_y+spd_text_y_offset)
+                screen.blit(spd_text, spd_text_rect)
+
+            if (spd_min <= int(spd_ref_spd+spd_div_kts) <= spd_max):
+                pygame.draw.line(screen, WHITE, (spd_line_x_left, spd_line_ref_y-spd_div), (spd_line_x_right, spd_line_ref_y-spd_div), spd_line_width)
+                # spd_text = pfdSpdTapeFont.render(format(int(spd_ref_spd+spd_div_kts)), True, WHITE)
+                # spd_text_rect = spd_text.get_rect(right=spd_text_x, centery=spd_line_ref_y+spd_text_y_offset-spd_div)
+                # screen.blit(spd_text, spd_text_rect)
+            if (spd_min <= int(spd_ref_spd+2*spd_div_kts) <= spd_max):
+                pygame.draw.line(screen, WHITE, (spd_line_x_left, spd_line_ref_y-spd_div*2), (spd_line_x_right, spd_line_ref_y-spd_div*2), spd_line_width)
+                spd_text = pfdSpdTapeFont.render(format(int(spd_ref_spd+2*spd_div_kts)), True, WHITE)
+                spd_text_rect = spd_text.get_rect(right=spd_text_x, centery=spd_line_ref_y+spd_text_y_offset-spd_div*2)
+                screen.blit(spd_text, spd_text_rect)
+            if (spd_min <= int(spd_ref_spd+3*spd_div_kts) <= spd_max):    
+                pygame.draw.line(screen, WHITE, (spd_line_x_left, spd_line_ref_y-spd_div*3), (spd_line_x_right, spd_line_ref_y-spd_div*3), spd_line_width)
+                # spd_text = pfdSpdTapeFont.render(format(int(spd_ref_spd+3*spd_div_kts)), True, WHITE)
+                # spd_text_rect = spd_text.get_rect(right=spd_text_x, centery=spd_line_ref_y+spd_text_y_offset-spd_div*3)
+                # screen.blit(spd_text, spd_text_rect)
+            if (spd_min <= int(spd_ref_spd+4*spd_div_kts) <= spd_max):   
+                pygame.draw.line(screen, WHITE, (spd_line_x_left, spd_line_ref_y-spd_div*4), (spd_line_x_right, spd_line_ref_y-spd_div*4), spd_line_width)
+                spd_text = pfdSpdTapeFont.render(format(int(spd_ref_spd+4*spd_div_kts)), True, WHITE)
+                spd_text_rect = spd_text.get_rect(right=spd_text_x, centery=spd_line_ref_y+spd_text_y_offset-spd_div*4)
+                screen.blit(spd_text, spd_text_rect)
+            if (spd_min <= int(spd_ref_spd+5*spd_div_kts) <= spd_max):    
+                pygame.draw.line(screen, WHITE, (spd_line_x_left, spd_line_ref_y-spd_div*5), (spd_line_x_right, spd_line_ref_y-spd_div*5), spd_line_width)
+                # spd_text = pfdSpdTapeFont.render(format(int(spd_ref_spd+5*spd_div_kts)), True, WHITE)
+                # spd_text_rect = spd_text.get_rect(right=spd_text_x, centery=spd_line_ref_y+spd_text_y_offset-spd_div*5)
+                # screen.blit(spd_text, spd_text_rect)
+            if (spd_min <= int(spd_ref_spd+6*spd_div_kts) <= spd_max):    
+                pygame.draw.line(screen, WHITE, (spd_line_x_left, spd_line_ref_y-spd_div*6), (spd_line_x_right, spd_line_ref_y-spd_div*6), spd_line_width)
+                spd_text = pfdSpdTapeFont.render(format(int(spd_ref_spd+6*spd_div_kts)), True, WHITE)
+                spd_text_rect = spd_text.get_rect(right=spd_text_x, centery=spd_line_ref_y+spd_text_y_offset-spd_div*6)
+                screen.blit(spd_text, spd_text_rect)
+            if (spd_min <= int(spd_ref_spd+7*spd_div_kts) <= spd_max):   
+                pygame.draw.line(screen, WHITE, (spd_line_x_left, spd_line_ref_y-spd_div*7), (spd_line_x_right, spd_line_ref_y-spd_div*7), spd_line_width)
+                # spd_text = pfdSpdTapeFont.render(format(int(spd_ref_spd+7*spd_div_kts)), True, WHITE)
+                # spd_text_rect = spd_text.get_rect(right=spd_text_x, centery=spd_line_ref_y+spd_text_y_offset-spd_div*7)
+                # screen.blit(spd_text, spd_text_rect)
+            if (spd_min <= int(spd_ref_spd+8*spd_div_kts) <= spd_max):    
+                pygame.draw.line(screen, WHITE, (spd_line_x_left, spd_line_ref_y-spd_div*8), (spd_line_x_right, spd_line_ref_y-spd_div*8), spd_line_width)
+                spd_text = pfdSpdTapeFont.render(format(int(spd_ref_spd+8*spd_div_kts)), True, WHITE)
+                spd_text_rect = spd_text.get_rect(right=spd_text_x, centery=spd_line_ref_y+spd_text_y_offset-spd_div*8)
+                screen.blit(spd_text, spd_text_rect)
+            if (spd_min <= int(spd_ref_spd+9*spd_div_kts) <= spd_max):   
+                pygame.draw.line(screen, WHITE, (spd_line_x_left, spd_line_ref_y-spd_div*9), (spd_line_x_right, spd_line_ref_y-spd_div*9), spd_line_width)
+                # spd_text = pfdSpdTapeFont.render(format(int(spd_ref_spd+9*spd_div_kts)), True, WHITE)
+                # spd_text_rect = spd_text.get_rect(right=spd_text_x, centery=spd_line_ref_y+spd_text_y_offset-spd_div*9)
+                # screen.blit(spd_text, spd_text_rect)
+            if (spd_min <= int(spd_ref_spd+10*spd_div_kts) <= spd_max):    
+                pygame.draw.line(screen, WHITE, (spd_line_x_left, spd_line_ref_y-spd_div*10), (spd_line_x_right, spd_line_ref_y-spd_div*10), spd_line_width)
+                spd_text = pfdSpdTapeFont.render(format(int(spd_ref_spd+10*spd_div_kts)), True, WHITE)
+                spd_text_rect = spd_text.get_rect(right=spd_text_x, centery=spd_line_ref_y+spd_text_y_offset-spd_div*10)
+                screen.blit(spd_text, spd_text_rect)      
+
+        # Altitude Tape
+        if pressStatus:
+            pygame.draw.rect(screen, BOEING_GRAY, pygame.Rect(623, 105, 110, 645))  # Background; x, y, width, height
+
+            alt_tape_value = drv_indAltFt
+            if alt_tape_value < alt_min:
+                alt_tape_value = alt_min
+            if alt_tape_value > alt_max:
+                alt_tape_value = alt_max
+
+            if abs(alt_tape_value/alt_ft_to_px) < alt_lapse:
+                alt_line_section = 1
+            else:
+                alt_line_section = math.ceil((abs(alt_tape_value)/alt_ft_to_px-alt_lapse)/(2*alt_lapse))+1
+            if alt_tape_value/alt_ft_to_px < 0:
+                alt_line_section = -alt_line_section
+
+            if alt_line_section >= 0:
+                alt_line_ref_y = round( alt_pointer_y + (alt_tape_value/alt_ft_to_px) - (alt_line_section-1)*2*alt_lapse)
+                alt_ref_alt = (alt_line_section-1)*round(2*alt_lapse*alt_ft_to_px, -1)
+            else:
+                alt_line_ref_y = round( alt_pointer_y + (alt_tape_value/alt_ft_to_px) - (alt_line_section+1)*2*alt_lapse)
+                alt_ref_alt = (alt_line_section+1)*round(2*alt_lapse*alt_ft_to_px, -1)
+
+            if (alt_min <= int(alt_ref_alt-8*alt_div_ft) <= alt_max):
+                pygame.draw.line(screen, WHITE, (alt_line_x_left, alt_line_ref_y+alt_div*8), (alt_line_x_right, alt_line_ref_y+alt_div*8), alt_line_width)
+                alt_text = pfdAltTapeFont.render(format(int(alt_ref_alt-8*alt_div_ft)), True, WHITE)
+                screen.blit(alt_text, (alt_text_x, alt_line_ref_y+alt_text_y_offset+alt_div*8))
+            if (alt_min <= int(alt_ref_alt-7*alt_div_ft) <= alt_max):
+                pygame.draw.line(screen, WHITE, (alt_line_x_left, alt_line_ref_y+alt_div*7), (alt_line_x_right, alt_line_ref_y+alt_div*7), alt_line_width)
+                # alt_text = pfdAltTapeFont.render(format(int(alt_ref_alt-7*alt_div_ft)), True, WHITE)
+                # screen.blit(alt_text, (alt_text_x, alt_line_ref_y+alt_text_y_offset+alt_div*7))
+            if (alt_min <= int(alt_ref_alt-6*alt_div_ft) <= alt_max):    
+                pygame.draw.line(screen, WHITE, (alt_line_x_left, alt_line_ref_y+alt_div*6), (alt_line_x_right, alt_line_ref_y+alt_div*6), alt_line_width)
+                alt_text = pfdAltTapeFont.render(format(int(alt_ref_alt-6*alt_div_ft)), True, WHITE)
+                screen.blit(alt_text, (alt_text_x, alt_line_ref_y+alt_text_y_offset+alt_div*6))
+            if (alt_min <= int(alt_ref_alt-5*alt_div_ft) <= alt_max):    
+                pygame.draw.line(screen, WHITE, (alt_line_x_left, alt_line_ref_y+alt_div*5), (alt_line_x_right, alt_line_ref_y+alt_div*5), alt_line_width)
+                # alt_text = pfdAltTapeFont.render(format(int(alt_ref_alt-5*alt_div_ft)), True, WHITE)
+                # screen.blit(alt_text, (alt_text_x, alt_line_ref_y+alt_text_y_offset+alt_div*5))
+            if (alt_min <= int(alt_ref_alt-4*alt_div_ft) <= alt_max):
+                pygame.draw.line(screen, WHITE, (alt_line_x_left, alt_line_ref_y+alt_div*4), (alt_line_x_right, alt_line_ref_y+alt_div*4), alt_line_width)
+                alt_text = pfdAltTapeFont.render(format(int(alt_ref_alt-4*alt_div_ft)), True, WHITE)
+                screen.blit(alt_text, (alt_text_x, alt_line_ref_y+alt_text_y_offset+alt_div*4))
+            if (alt_min <= int(alt_ref_alt-3*alt_div_ft) <= alt_max):    
+                pygame.draw.line(screen, WHITE, (alt_line_x_left, alt_line_ref_y+alt_div*3), (alt_line_x_right, alt_line_ref_y+alt_div*3), alt_line_width)
+                # alt_text = pfdAltTapeFont.render(format(int(alt_ref_alt-3*alt_div_ft)), True, WHITE)
+                # screen.blit(alt_text, (alt_text_x, alt_line_ref_y+alt_text_y_offset+alt_div*3))
+            if (alt_min <= int(alt_ref_alt-2*alt_div_ft) <= alt_max):    
+                pygame.draw.line(screen, WHITE, (alt_line_x_left, alt_line_ref_y+alt_div*2), (alt_line_x_right, alt_line_ref_y+alt_div*2), alt_line_width)
+                alt_text = pfdAltTapeFont.render(format(int(alt_ref_alt-2*alt_div_ft)), True, WHITE)
+                screen.blit(alt_text, (alt_text_x, alt_line_ref_y+alt_text_y_offset+alt_div*2))
+            if (alt_min <= int(alt_ref_alt-alt_div_ft) <= alt_max):    
+                pygame.draw.line(screen, WHITE, (alt_line_x_left, alt_line_ref_y+alt_div), (alt_line_x_right, alt_line_ref_y+alt_div), alt_line_width)
+                # alt_text = pfdAltTapeFont.render(format(int(alt_ref_alt-alt_div_ft)), True, WHITE)
+                # screen.blit(alt_text, (alt_text_x, alt_line_ref_y+alt_text_y_offset+alt_div))
+                    
+            if (alt_min <= int(alt_ref_alt) <= alt_max):    
+                pygame.draw.line(screen, WHITE, (alt_line_x_left, alt_line_ref_y), (alt_line_x_right, alt_line_ref_y), alt_line_width)  # Middle Line
+                alt_text = pfdAltTapeFont.render(format(int(alt_ref_alt)), True, WHITE)
+                screen.blit(alt_text, (alt_text_x, alt_line_ref_y+alt_text_y_offset))
+
+            if (alt_min <= int(alt_ref_alt+alt_div_ft) <= alt_max):     
+                pygame.draw.line(screen, WHITE, (alt_line_x_left, alt_line_ref_y-alt_div), (alt_line_x_right, alt_line_ref_y-alt_div), alt_line_width)
+                # alt_text = pfdAltTapeFont.render(format(int(alt_ref_alt+alt_div_ft)), True, WHITE)
+                # screen.blit(alt_text, (alt_text_x, alt_line_ref_y+alt_text_y_offset-alt_div))
+            if (alt_min <= int(alt_ref_alt+2*alt_div_ft) <= alt_max):     
+                pygame.draw.line(screen, WHITE, (alt_line_x_left, alt_line_ref_y-alt_div*2), (alt_line_x_right, alt_line_ref_y-alt_div*2), alt_line_width)
+                alt_text = pfdAltTapeFont.render(format(int(alt_ref_alt+2*alt_div_ft)), True, WHITE)
+                screen.blit(alt_text, (alt_text_x, alt_line_ref_y+alt_text_y_offset-alt_div*2))
+            if (alt_min <= int(alt_ref_alt+3*alt_div_ft) <= alt_max):     
+                pygame.draw.line(screen, WHITE, (alt_line_x_left, alt_line_ref_y-alt_div*3), (alt_line_x_right, alt_line_ref_y-alt_div*3), alt_line_width)
+                # alt_text = pfdAltTapeFont.render(format(int(alt_ref_alt+3*alt_div_ft)), True, WHITE)
+                # screen.blit(alt_text, (alt_text_x, alt_line_ref_y+alt_text_y_offset-alt_div*3))
+            if (alt_min <= int(alt_ref_alt+4*alt_div_ft) <= alt_max):    
+                pygame.draw.line(screen, WHITE, (alt_line_x_left, alt_line_ref_y-alt_div*4), (alt_line_x_right, alt_line_ref_y-alt_div*4), alt_line_width)
+                alt_text = pfdAltTapeFont.render(format(int(alt_ref_alt+4*alt_div_ft)), True, WHITE)
+                screen.blit(alt_text, (alt_text_x, alt_line_ref_y+alt_text_y_offset-alt_div*4))
+            if (alt_min <= int(alt_ref_alt+5*alt_div_ft) <= alt_max): 
+                pygame.draw.line(screen, WHITE, (alt_line_x_left, alt_line_ref_y-alt_div*5), (alt_line_x_right, alt_line_ref_y-alt_div*5), alt_line_width)
+                # alt_text = pfdAltTapeFont.render(format(int(alt_ref_alt+5*alt_div_ft)), True, WHITE)
+                # screen.blit(alt_text, (alt_text_x, alt_line_ref_y+alt_text_y_offset-alt_div*5))
+            if (alt_min <= int(alt_ref_alt+6*alt_div_ft) <= alt_max):     
+                pygame.draw.line(screen, WHITE, (alt_line_x_left, alt_line_ref_y-alt_div*6), (alt_line_x_right, alt_line_ref_y-alt_div*6), alt_line_width)
+                alt_text = pfdAltTapeFont.render(format(int(alt_ref_alt+6*alt_div_ft)), True, WHITE)
+                screen.blit(alt_text, (alt_text_x, alt_line_ref_y+alt_text_y_offset-alt_div*6))
+            if (alt_min <= int(alt_ref_alt+7*alt_div_ft) <= alt_max):     
+                pygame.draw.line(screen, WHITE, (alt_line_x_left, alt_line_ref_y-alt_div*7), (alt_line_x_right, alt_line_ref_y-alt_div*7), alt_line_width)
+                # alt_text = pfdAltTapeFont.render(format(int(alt_ref_alt+7*alt_div_ft)), True, WHITE)
+                # screen.blit(alt_text, (alt_text_x, alt_line_ref_y+alt_text_y_offset-alt_div*7))
+            if (alt_min <= int(alt_ref_alt+8*alt_div_ft) <= alt_max):    
+                pygame.draw.line(screen, WHITE, (alt_line_x_left, alt_line_ref_y-alt_div*8), (alt_line_x_right, alt_line_ref_y-alt_div*8), alt_line_width)
+                alt_text = pfdAltTapeFont.render(format(int(alt_ref_alt+8*alt_div_ft)), True, WHITE)
+                screen.blit(alt_text, (alt_text_x, alt_line_ref_y+alt_text_y_offset-alt_div*8))
+
+        # Vertical Speed Line
+        if pressStatus:
+            screen.blit(pfd_vspd_background, (0, 0))  # Background
+
+            if drv_baroVspdFpm >= 0:
+                if drv_baroVspdFpm <= 1000:
+                    vspd_line_tie_y_pos = vspd_line_ctr_y_pos - round(drv_baroVspdFpm / vspd_fpmPerPxTo1000)
+                elif drv_baroVspdFpm <= 2000:
+                    vspd_line_tie_y_pos = vspd_line_ctr_y_pos - round(1000 / vspd_fpmPerPxTo1000 + (drv_baroVspdFpm-1000) / vspd_fpmPerPxTo2000)
+                elif drv_baroVspdFpm <= 6000:
+                    vspd_line_tie_y_pos = vspd_line_ctr_y_pos - round(1000 / vspd_fpmPerPxTo1000 + 1000 / vspd_fpmPerPxTo2000 + (drv_baroVspdFpm-2000) / vspd_fpmPerPxTo6000)
+                else:
+                    vspd_line_tie_y_pos = vspd_line_ctr_y_pos - round(1000 / vspd_fpmPerPxTo1000 + 1000 / vspd_fpmPerPxTo2000 + 4000 / vspd_fpmPerPxTo6000)
+            else:
+                if drv_baroVspdFpm >= -1000:
+                    vspd_line_tie_y_pos = vspd_line_ctr_y_pos + round(-drv_baroVspdFpm / vspd_fpmPerPxTo1000)
+                elif drv_baroVspdFpm >= -2000:
+                    vspd_line_tie_y_pos = vspd_line_ctr_y_pos + round(1000 / vspd_fpmPerPxTo1000 + (-drv_baroVspdFpm-1000) / vspd_fpmPerPxTo2000)
+                elif drv_baroVspdFpm >= -6000:
+                    vspd_line_tie_y_pos = vspd_line_ctr_y_pos + round(1000 / vspd_fpmPerPxTo1000 + 1000 / vspd_fpmPerPxTo2000 + (-drv_baroVspdFpm-2000) / vspd_fpmPerPxTo6000)
+                else:
+                    vspd_line_tie_y_pos = vspd_line_ctr_y_pos + round(1000 / vspd_fpmPerPxTo1000 + 1000 / vspd_fpmPerPxTo2000 + 4000 / vspd_fpmPerPxTo6000)
+        
+            pygame.draw.line(screen, WHITE, (vspd_line_ctr_x_pos,vspd_line_ctr_y_pos), (vspd_line_tie_x_pos,vspd_line_tie_y_pos), vspd_line_width)
+
+        # Compass
+        if magStatus:  
+                # Kerteriz çemberini çiz
+            pygame.draw.circle(screen, BOEING_GRAY, (pfdCompass_center_x, pfdCompass_center_y), pfdCompass_radius, 0)
+
+            for degree in range(0, 360, 10):
+                rad = math.radians(degree)
+                adjusted_angle = rad + math.radians(-drv_magHdg-90)
+                x1 = pfdCompass_center_x + (pfdCompass_radius - pfdCompass_short_tick_length) * math.cos(adjusted_angle)
+                y1 = pfdCompass_center_y + (pfdCompass_radius - pfdCompass_short_tick_length) * math.sin(adjusted_angle)
+                x2 = pfdCompass_center_x + pfdCompass_radius * math.cos(adjusted_angle)
+                y2 = pfdCompass_center_y + pfdCompass_radius * math.sin(adjusted_angle)
+                if degree % 30 == 0:
+                    x1 = pfdCompass_center_x + (pfdCompass_radius - pfdCompass_long_tick_length) * math.cos(adjusted_angle)
+                    y1 = pfdCompass_center_y + (pfdCompass_radius - pfdCompass_long_tick_length) * math.sin(adjusted_angle)
+                pygame.draw.line(screen, WHITE, (x1, y1), (x2, y2), pfdCompass_degree_line_thickness)
+
+                if degree % 10 == 0:
+                    text = str(degree // 10) if degree % 30 != 0 else str(degree // 10)
+                    font = pfdCompass_font_large if degree % 30 == 0 else pfdCompass_font_small
+                    text_angle = degree - 90
+                    text_x = pfdCompass_center_x + (pfdCompass_radius - pfdCompass_long_tick_length - 20) * math.cos(adjusted_angle)
+                    text_y = pfdCompass_center_y + (pfdCompass_radius - pfdCompass_long_tick_length - 20) * math.sin(adjusted_angle)
+                    text_surface = font.render(text, True, WHITE)
+                    text_rect = text_surface.get_rect(center=(text_x, text_y))
+                    rotated_surface = pygame.transform.rotate(text_surface, -degree)
+                    rotated_rect = rotated_surface.get_rect(center=(text_x, text_y))
+                    screen.blit(rotated_surface, rotated_rect.topleft)
+
+        # Speed Trend Arrow
+        if imuStatus:
+            accel_ArrowTipY = accel_arrowCtrY + round((-imu_az)*accel_factor)
+            
+            if (abs(accel_ArrowTipY) >= accel_arrowCtrY+accel_arrowDeathZone) or (abs(accel_ArrowTipY) <= accel_arrowCtrY-accel_arrowDeathZone):
+                if accel_ArrowTipY <= accel_arrowCtrY-accel_arrowLimYUp:
+                    accel_ArrowTipY = accel_arrowCtrY-accel_arrowLimYUp
+                if accel_ArrowTipY >= accel_arrowCtrY+accel_arrowLimYDown:
+                    accel_ArrowTipY = accel_arrowCtrY+accel_arrowLimYDown
+
+                draw_arrow(screen, BOEING_GREEN, (accel_arrowX, accel_arrowCtrY), (accel_arrowX, accel_ArrowTipY), accel_arrowThickness)
+
+        # == PFD BACKGROUND ==
+        screen.blit(pfdBackground, (0, 0))
+
+        # Vertical Speed Indicator
+        if pressStatus:
+            vspd_ind_min_value = 300    # Threshold absolute value to display
+
+            vspd_ind_value = round(drv_baroVspdFpm / 50) * 50
+            if vspd_ind_value >= 9999:
+                vspd_ind_value = 9999
+            if vspd_ind_value <= -9999:
+                vspd_ind_value = -9999
+
+            pfdVspd = pfdVspdFont.render(format(vspd_ind_value), True, WHITE)
+
+            if vspd_ind_value >= vspd_ind_min_value:
+                screen.blit(pfdVspd, (752, 200))
+            if vspd_ind_value <= -vspd_ind_min_value:
+                screen.blit(pfdVspd, (752, 635))
+
+        # Speed Indicator
+        if diffStatus:
+            screen.blit(pfd_spd_pointer, pfd_spd_pointer_pos)
+            pfdSpd = pfdSpdFont.render(format(round(spd_tape_value)), True, WHITE)
+            screen.blit(pfdSpd, pfdSpdTextPos)
+
+        # Mach Indicator
+        if diffStatus & (int(drv_kias) >= mach_transition):
+            pfdMachFormatted = "{:.3f}".format(round(drv_mach, 3))
+            if pfdMachFormatted.startswith("0."):
+                pfdMachFormatted = pfdMachFormatted[1:]
+            pfdMachFormattedText = pfdMachFont.render(pfdMachFormatted, True, WHITE)
+            screen.blit(pfdMachFormattedText, pfdMachTextPos)
+ 
+        # Altitude Indicator
+        if pressStatus:
+            screen.blit(pfd_alt_pointer, pfd_alt_pointer_pos)
+            pfdAlt = pfdAltFont.render(format(int(round(alt_tape_value, -1))), True, WHITE)
+            screen.blit(pfdAlt, pfdAltTextPos)
+
+        # Altimeter Settings
+        if pressStatus:
+            if set_altStd == True:
+                if (int(drv_indAltFt/100) > shared_data.menu_pfd_trl) or transition_buffer_ta_trl:
+                    pfdAltStd = pfdAltStdFont.render("STD", True, BOEING_GREEN)
+                else:
+                    pfdAltStd = pfdAltStdFont.render("STD", True, BOEING_AMBER)
+                    transition_buffer_trl_ta = True
+                screen.blit(pfdAltStd, (653, 755))
+
+                if (round(set_altStg, 1) != round(alt_stg_prev_alt_stg, 1)):
+                    alt_stg_stby_buffer = True
+
+                if alt_stg_stby_buffer:
+                    if shared_data.menu_pfd_altStgUnit == True:
+                        pfdAltStgStby = pfdAltStgStbyFont.render(f"{round(set_altStg/100)} HPA", True, WHITE)
+                    else:
+                        pfdAltStgStby = pfdAltStgStbyFont.render("{:.2f} IN.".format(round(set_altStg/100*constHpaToInhg, 2)), True, WHITE)
+                    screen.blit(pfdAltStgStby, (646, 785))        
+            else:
+                alt_stg_stby_buffer = False
+                if (int(drv_indAltFt) < shared_data.menu_pfd_ta) or transition_buffer_trl_ta:
+                    if shared_data.menu_pfd_altStgUnit == True:
+                        pfdAltStg = pfdAltStgFont.render(format(round(set_altStg/100)), True, BOEING_GREEN)
+                        pfdAltStgUnit = pfdAltStgUnitFont.render("HPA", True, BOEING_GREEN)
+                    else:
+                        pfdAltStg = pfdAltStgFont.render("{:.2f}".format(round(set_altStg/100*constHpaToInhg, 2)), True, BOEING_GREEN)
+                        pfdAltStgUnit = pfdAltStgUnitFont.render("IN.", True, BOEING_GREEN)
+                else:
+                    if shared_data.menu_pfd_altStgUnit == True:
+                        pfdAltStg = pfdAltStgFont.render(format(round(set_altStg/100)), True, BOEING_AMBER)
+                        pfdAltStgUnit = pfdAltStgUnitFont.render("HPA", True, BOEING_AMBER)
+                        transition_buffer_ta_trl = True
+                    else:
+                        pfdAltStg = pfdAltStgFont.render("{:.2f}".format(round(set_altStg/100*constHpaToInhg, 2)), True, BOEING_AMBER)
+                        pfdAltStgUnit = pfdAltStgUnitFont.render("IN.", True, BOEING_AMBER)
+                        transition_buffer_ta_trl = True
+                screen.blit(pfdAltStgUnit, (720, 762))
+                screen.blit(pfdAltStg, (638, 760))
+            if  int(drv_indAltFt) < shared_data.menu_pfd_ta or int(drv_indAltFt/100) > shared_data.menu_pfd_trl:
+                transition_buffer_trl_ta = False
+                transition_buffer_ta_trl = False
+            alt_stg_prev_alt_stg = set_altStg
+
+        # Compass Pointer
+        if magStatus:
+            screen.blit(pfd_compass_pointer, pfd_compass_pointer_pos)           
+            
+        # Heading [TEST]
+        pfdHdg = pfdHdgFont.render(format(round(drv_magHdg)), True, WHITE)
+        screen.blit(pfdHdg, (388, 50))
+
+        # Flags:
+        if not imuStatus:
+            screen.blit(pfd_flag_att_border, pfd_flag_att_border_pos)
+            screen.blit(pfd_flag_att, pfd_flag_att_pos) 
+        if not magStatus:
+            screen.blit(pfd_flag_hdg, pfd_flag_hdg_pos)
+        if not pressStatus:
+            screen.blit(pfd_flag_alt, pfd_flag_alt_pos)
+            screen.blit(pfd_flag_vert, pfd_flag_vert_pos)
+        if not diffStatus:
+            screen.blit(pfd_flag_spd, pfd_flag_spd_pos)
+
+
+        pygame.display.flip()
+        clock.tick(pfdTick)
+        # --------------------
+
+                # Process incoming data
         while True:       
             while True:
                 try:
@@ -537,7 +1170,7 @@ while True:
             elif incoming_data == '+':
                 break
 
-        # Print incoming data
+        # Print Incoming Data
         print("Incoming Data:")
         print("messageInterval:", messageInterval)
         print("set_altStd:", set_altStd)
@@ -583,523 +1216,8 @@ while True:
             if round(set_altStg/100) != shared_data.menu_pfd_altStgHpa:
                 ser.write(f"!atg={float(int(shared_data.menu_pfd_altStgHpa*100))}\r\n".encode('ascii'))
         else:
-            if round(set_altStg/100*hpaToInhg) != shared_data.menu_pfd_altStgInHg:
-                ser.write(f"!atg={float(int(shared_data.menu_pfd_altStgInHg/hpaToInhg*100))}\r\n".encode('ascii'))
+            if round(set_altStg/100*constHpaToInhg) != shared_data.menu_pfd_altStgInHg:
+                ser.write(f"!atg={float(int(shared_data.menu_pfd_altStgInHg/constHpaToInhg*100))}\r\n".encode('ascii'))
 
         ser.write("+\r\n+\r\n".encode('ascii'))
-        # --------------------
-
-        # Display
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                pygame.quit()
-                sys.exit()
-        
-        # Background
-        screen.fill(BOEING_GRAY)
-
-        # Atitude Indicator
-        att_ctr_x = 388
-        att_ctr_y = 427
-        pitch_offset = 8.8              # Pixels per degree
-        bank_amber_threshold = 35       # At or more
-        slipskid_offset = 250           # Pixels per g
-        slipskid_fill_threshold = 0.2   # g
-
-            # Attitude Image
-            # Center image
-        pfd_att_rect = pfd_att_img.get_rect(center=(att_ctr_x, att_ctr_y))
-            # Rotate image
-        pfd_rotated_img = pygame.transform.rotate(pfd_att_img, drv_roll)
-        pfd_rotated_rect = pfd_rotated_img.get_rect(center=pfd_att_rect.center)
-            # Displace image according to rotaton
-        if -90 <= drv_pitch and drv_pitch < 90:
-            pfd_rotated_rect.x += round(math.cos(math.radians(90-drv_roll)) * pitch_offset * drv_pitch)
-            pfd_rotated_rect.y += round(math.sin(math.radians(90-drv_roll)) * pitch_offset * drv_pitch)
-        elif 90 <= drv_pitch and drv_pitch < 180:
-            pfd_rotated_rect.x += round(math.cos(math.radians(90-drv_roll)) * pitch_offset * (drv_pitch-180))
-            pfd_rotated_rect.y += round(math.sin(math.radians(90-drv_roll)) * pitch_offset * (drv_pitch-180))
-        else:
-            pfd_rotated_rect.x += round(math.cos(math.radians(90-drv_roll)) * pitch_offset * (drv_pitch+180))
-            pfd_rotated_rect.y += round(math.sin(math.radians(90-drv_roll)) * pitch_offset * (drv_pitch+180))
-        # Draw att image
-        screen.blit(pfd_rotated_img, pfd_rotated_rect)
-            
-            # Roll Pointer
-        if abs(drv_roll) < bank_amber_threshold:
-            # Center pointer image
-            pfd_att_roll_pointer_rect = pfd_att_roll_pointer_img.get_rect(center=(att_ctr_x, att_ctr_y))
-            # Rotate pointer image
-            pfd_att_roll_pointer_rotated_img = pygame.transform.rotate(pfd_att_roll_pointer_img, drv_roll)
-            pfd_att_roll_pointer_rotated_rect = pfd_att_roll_pointer_rotated_img.get_rect(center=pfd_att_rect.center)
-            # Draw pointer image
-            screen.blit(pfd_att_roll_pointer_rotated_img, pfd_att_roll_pointer_rotated_rect)
-        else:
-            # Center pointer image
-            pfd_att_roll_pointer_amber_rect = pfd_att_roll_pointer_amber_img.get_rect(center=(att_ctr_x, att_ctr_y))
-            # Rotate pointer image
-            pfd_att_roll_pointer_amber_rotated_img = pygame.transform.rotate(pfd_att_roll_pointer_amber_img, drv_roll)
-            pfd_att_roll_pointer_amber_rotated_rect = pfd_att_roll_pointer_amber_rotated_img.get_rect(center=pfd_att_rect.center)
-            # Draw pointer image
-            screen.blit(pfd_att_roll_pointer_amber_rotated_img, pfd_att_roll_pointer_amber_rotated_rect)   
-        
-        # Slip/Skid Indicator
-        if abs(drv_roll) < bank_amber_threshold:
-            if abs(imu_ax) <= slipskid_fill_threshold:
-                    # Center image
-                pfd_att_slipskid_white_rect = pfd_att_slipskid_white_img.get_rect(center=(att_ctr_x, att_ctr_y))
-                    # Rotate image
-                pfd_att_slipskid_white_rotated_img = pygame.transform.rotate(pfd_att_slipskid_white_img, drv_roll)
-                pfd_att_slipskid_white_rotated_rect = pfd_att_slipskid_white_rotated_img.get_rect(center=pfd_att_slipskid_white_rect.center)
-                    # Displace image according to rotaton
-                pfd_att_slipskid_white_rotated_rect.x += round((imu_ax*slipskid_offset*math.cos(math.radians(drv_roll))))
-                pfd_att_slipskid_white_rotated_rect.y -= round((imu_ax*slipskid_offset*math.sin(math.radians(drv_roll))))
-                    # Draw att image
-                screen.blit(pfd_att_slipskid_white_rotated_img, pfd_att_slipskid_white_rotated_rect)
-            else:
-                    # Center image
-                pfd_att_slipskid_white_filled_rect = pfd_att_slipskid_white_filled_img.get_rect(center=(att_ctr_x, att_ctr_y))
-                    # Rotate image
-                pfd_att_slipskid_white_filled_rotated_img = pygame.transform.rotate(pfd_att_slipskid_white_filled_img, drv_roll)
-                pfd_att_slipskid_white_filled_rotated_rect = pfd_att_slipskid_white_filled_rotated_img.get_rect(center=pfd_att_slipskid_white_filled_rect.center)
-                    # Displace image according to rotaton
-                pfd_att_slipskid_white_filled_rotated_rect.x += round((take_sign(imu_ax)*slipskid_fill_threshold*slipskid_offset*math.cos(math.radians(drv_roll))))
-                pfd_att_slipskid_white_filled_rotated_rect.y -= round((take_sign(imu_ax)*slipskid_fill_threshold*slipskid_offset*math.sin(math.radians(drv_roll))))
-                    # Draw att image
-                screen.blit(pfd_att_slipskid_white_filled_rotated_img, pfd_att_slipskid_white_filled_rotated_rect)
-        else:
-            if abs(imu_ax) <= slipskid_fill_threshold:
-                    # Center image
-                pfd_att_slipskid_amber_rect = pfd_att_slipskid_amber_img.get_rect(center=(att_ctr_x, att_ctr_y))
-                    # Rotate image
-                pfd_att_slipskid_amber_rotated_img = pygame.transform.rotate(pfd_att_slipskid_amber_img, drv_roll)
-                pfd_att_slipskid_amber_rotated_rect = pfd_att_slipskid_amber_rotated_img.get_rect(center=pfd_att_slipskid_amber_rect.center)
-                    # Displace image according to rotaton
-                pfd_att_slipskid_amber_rotated_rect.x += round((imu_ax*slipskid_offset*math.cos(math.radians(drv_roll))))
-                pfd_att_slipskid_amber_rotated_rect.y -= round((imu_ax*slipskid_offset*math.sin(math.radians(drv_roll))))
-                    # Draw att image
-                screen.blit(pfd_att_slipskid_amber_rotated_img, pfd_att_slipskid_amber_rotated_rect)
-            else:
-                # Center image
-                pfd_att_slipskid_amber_filled_rect = pfd_att_slipskid_amber_filled_img.get_rect(center=(att_ctr_x, att_ctr_y))
-                    # Rotate image
-                pfd_att_slipskid_amber_filled_rotated_img = pygame.transform.rotate(pfd_att_slipskid_amber_filled_img, drv_roll)
-                pfd_att_slipskid_amber_filled_rotated_rect = pfd_att_slipskid_amber_filled_rotated_img.get_rect(center=pfd_att_slipskid_amber_filled_rect.center)
-                    # Displace image according to rotaton
-                pfd_att_slipskid_amber_filled_rotated_rect.x += round((take_sign(imu_ax)*slipskid_fill_threshold*slipskid_offset*math.cos(math.radians(drv_roll))))
-                pfd_att_slipskid_amber_filled_rotated_rect.y -= round((take_sign(imu_ax)*slipskid_fill_threshold*slipskid_offset*math.sin(math.radians(drv_roll))))
-                    # Draw att image
-                screen.blit(pfd_att_slipskid_amber_filled_rotated_img, pfd_att_slipskid_amber_filled_rotated_rect)
-
-            # Split Axis Pointer
-        screen.blit(pfd_att_split_axis_pointer, (0, 0))
-
-            # Roll Scale
-        screen.blit(pfd_att_roll_scale, (0, 0))
-        
-        # Speed Tape
-
-        pygame.draw.rect(screen, BOEING_GRAY, pygame.Rect(45, 105, 110, 645))  # Background; x, y, width, height
-
-        spd_min = 30
-        spd_max = 220
-
-        spd_tape_value = drv_kias
-        if spd_tape_value < spd_min:
-            spd_tape_value = spd_min
-        if spd_tape_value > spd_max:
-            spd_tape_value = spd_max
-
-        spd_pointer_y = 427     # px
-        spd_line_x_left = 128   # px
-        spd_line_x_right = 152  # px
-        spd_line_width = 3      # px
-        spd_div = 50            # px
-        spd_div_kts = 10        # kts
-        spd_kts_to_px = 10/50   # 0.2
-        spd_lapse = 250         # px, full scale 500
-        spd_text_x = 118        # px, aligned to right
-        spd_text_y_offset = 1   # -px
-
-        if abs(spd_tape_value/spd_kts_to_px) < spd_lapse:
-            spd_line_section = 1
-        else:
-            spd_line_section = math.ceil((abs(spd_tape_value)/spd_kts_to_px-spd_lapse)/(2*spd_lapse))+1
-        
-        if spd_tape_value < 0:
-            spd_line_section = 1
-            spd_tape_value = 0
-
-        spd_line_ref_y = round( spd_pointer_y + (spd_tape_value/spd_kts_to_px) - (spd_line_section-1)*2*spd_lapse)
-        spd_ref_spd = (spd_line_section-1)*round(2*spd_lapse*spd_kts_to_px, -1)
-
-        if (spd_min <= int(spd_ref_spd-10*spd_div_kts) <= spd_max):
-            pygame.draw.line(screen, WHITE, (spd_line_x_left, spd_line_ref_y+spd_div*10), (spd_line_x_right, spd_line_ref_y+spd_div*10), spd_line_width)
-            spd_text = pfdSpdTapeFont.render(format(int(spd_ref_spd-10*spd_div_kts)), True, WHITE)
-            spd_text_rect = spd_text.get_rect(right=spd_text_x, centery=spd_line_ref_y+spd_text_y_offset+spd_div*10)
-            screen.blit(spd_text, spd_text_rect)
-        if (spd_min <= int(spd_ref_spd-9*spd_div_kts) <= spd_max):  
-            pygame.draw.line(screen, WHITE, (spd_line_x_left, spd_line_ref_y+spd_div*9), (spd_line_x_right, spd_line_ref_y+spd_div*9), spd_line_width)
-            # spd_text = pfdSpdTapeFont.render(format(int(spd_ref_spd-9*spd_div_kts)), True, WHITE)
-            # spd_text_rect = spd_text.get_rect(right=spd_text_x, centery=spd_line_ref_y+spd_text_y_offset+spd_div*9)
-            # screen.blit(spd_text, spd_text_rect)
-        if (spd_min <= int(spd_ref_spd-8*spd_div_kts) <= spd_max):      
-            pygame.draw.line(screen, WHITE, (spd_line_x_left, spd_line_ref_y+spd_div*8), (spd_line_x_right, spd_line_ref_y+spd_div*8), spd_line_width)
-            spd_text = pfdSpdTapeFont.render(format(int(spd_ref_spd-8*spd_div_kts)), True, WHITE)
-            spd_text_rect = spd_text.get_rect(right=spd_text_x, centery=spd_line_ref_y+spd_text_y_offset+spd_div*8)
-            screen.blit(spd_text, spd_text_rect)   
-        if (spd_min <= int(spd_ref_spd-7*spd_div_kts) <= spd_max):    
-            pygame.draw.line(screen, WHITE, (spd_line_x_left, spd_line_ref_y+spd_div*7), (spd_line_x_right, spd_line_ref_y+spd_div*7), spd_line_width)
-            # spd_text = pfdSpdTapeFont.render(format(int(spd_ref_spd-7*spd_div_kts)), True, WHITE)
-            # spd_text_rect = spd_text.get_rect(right=spd_text_x, centery=spd_line_ref_y+spd_text_y_offset+spd_div*7)
-            # screen.blit(spd_text, spd_text_rect)
-        if (spd_min <= int(spd_ref_spd-6*spd_div_kts) <= spd_max):
-            pygame.draw.line(screen, WHITE, (spd_line_x_left, spd_line_ref_y+spd_div*6), (spd_line_x_right, spd_line_ref_y+spd_div*6), spd_line_width)
-            spd_text = pfdSpdTapeFont.render(format(int(spd_ref_spd-6*spd_div_kts)), True, WHITE)
-            spd_text_rect = spd_text.get_rect(right=spd_text_x, centery=spd_line_ref_y+spd_text_y_offset+spd_div*6)
-            screen.blit(spd_text, spd_text_rect)
-        if (spd_min <= int(spd_ref_spd-5*spd_div_kts) <= spd_max):  
-            pygame.draw.line(screen, WHITE, (spd_line_x_left, spd_line_ref_y+spd_div*5), (spd_line_x_right, spd_line_ref_y+spd_div*5), spd_line_width)
-            # spd_text = pfdSpdTapeFont.render(format(int(spd_ref_spd-5*spd_div_kts)), True, WHITE)
-            # spd_text_rect = spd_text.get_rect(right=spd_text_x, centery=spd_line_ref_y+spd_text_y_offset+spd_div*5)
-            # screen.blit(spd_text, spd_text_rect)
-        if (spd_min <= int(spd_ref_spd-4*spd_div_kts) <= spd_max):
-            pygame.draw.line(screen, WHITE, (spd_line_x_left, spd_line_ref_y+spd_div*4), (spd_line_x_right, spd_line_ref_y+spd_div*4), spd_line_width)
-            spd_text = pfdSpdTapeFont.render(format(int(spd_ref_spd-4*spd_div_kts)), True, WHITE)
-            spd_text_rect = spd_text.get_rect(right=spd_text_x, centery=spd_line_ref_y+spd_text_y_offset+spd_div*4)
-            screen.blit(spd_text, spd_text_rect)
-        if (spd_min <= int(spd_ref_spd-3*spd_div_kts) <= spd_max):
-            pygame.draw.line(screen, WHITE, (spd_line_x_left, spd_line_ref_y+spd_div*3), (spd_line_x_right, spd_line_ref_y+spd_div*3), spd_line_width)
-            # spd_text = pfdSpdTapeFont.render(format(int(spd_ref_spd-3*spd_div_kts)), True, WHITE)
-            # spd_text_rect = spd_text.get_rect(right=spd_text_x, centery=spd_line_ref_y+spd_text_y_offset+spd_div*3)
-            # screen.blit(spd_text, spd_text_rect)
-        if (spd_min <= int(spd_ref_spd-2*spd_div_kts) <= spd_max): 
-            pygame.draw.line(screen, WHITE, (spd_line_x_left, spd_line_ref_y+spd_div*2), (spd_line_x_right, spd_line_ref_y+spd_div*2), spd_line_width)
-            spd_text = pfdSpdTapeFont.render(format(int(spd_ref_spd-2*spd_div_kts)), True, WHITE)
-            spd_text_rect = spd_text.get_rect(right=spd_text_x, centery=spd_line_ref_y+spd_text_y_offset+spd_div*2)
-            screen.blit(spd_text, spd_text_rect)
-        if (spd_min <= int(spd_ref_spd-spd_div_kts) <= spd_max):
-            pygame.draw.line(screen, WHITE, (spd_line_x_left, spd_line_ref_y+spd_div), (spd_line_x_right, spd_line_ref_y+spd_div), spd_line_width)
-            # spd_text = pfdSpdTapeFont.render(format(int(spd_ref_spd-spd_div_kts)), True, WHITE)
-            # spd_text_rect = spd_text.get_rect(right=spd_text_x, centery=spd_line_ref_y+spd_text_y_offset+spd_div)
-            # screen.blit(spd_text, spd_text_rect)
-        
-        if (spd_min <= int(spd_ref_spd) <= spd_max):
-            pygame.draw.line(screen, WHITE, (spd_line_x_left, spd_line_ref_y), (spd_line_x_right, spd_line_ref_y), spd_line_width)  # Middle Line
-            spd_text = pfdSpdTapeFont.render(format(int(spd_ref_spd)), True, WHITE)
-            spd_text_rect = spd_text.get_rect(right=spd_text_x, centery=spd_line_ref_y+spd_text_y_offset)
-            screen.blit(spd_text, spd_text_rect)
-
-        if (spd_min <= int(spd_ref_spd+spd_div_kts) <= spd_max):
-            pygame.draw.line(screen, WHITE, (spd_line_x_left, spd_line_ref_y-spd_div), (spd_line_x_right, spd_line_ref_y-spd_div), spd_line_width)
-            # spd_text = pfdSpdTapeFont.render(format(int(spd_ref_spd+spd_div_kts)), True, WHITE)
-            # spd_text_rect = spd_text.get_rect(right=spd_text_x, centery=spd_line_ref_y+spd_text_y_offset-spd_div)
-            # screen.blit(spd_text, spd_text_rect)
-        if (spd_min <= int(spd_ref_spd+2*spd_div_kts) <= spd_max):
-            pygame.draw.line(screen, WHITE, (spd_line_x_left, spd_line_ref_y-spd_div*2), (spd_line_x_right, spd_line_ref_y-spd_div*2), spd_line_width)
-            spd_text = pfdSpdTapeFont.render(format(int(spd_ref_spd+2*spd_div_kts)), True, WHITE)
-            spd_text_rect = spd_text.get_rect(right=spd_text_x, centery=spd_line_ref_y+spd_text_y_offset-spd_div*2)
-            screen.blit(spd_text, spd_text_rect)
-        if (spd_min <= int(spd_ref_spd+3*spd_div_kts) <= spd_max):    
-            pygame.draw.line(screen, WHITE, (spd_line_x_left, spd_line_ref_y-spd_div*3), (spd_line_x_right, spd_line_ref_y-spd_div*3), spd_line_width)
-            # spd_text = pfdSpdTapeFont.render(format(int(spd_ref_spd+3*spd_div_kts)), True, WHITE)
-            # spd_text_rect = spd_text.get_rect(right=spd_text_x, centery=spd_line_ref_y+spd_text_y_offset-spd_div*3)
-            # screen.blit(spd_text, spd_text_rect)
-        if (spd_min <= int(spd_ref_spd+4*spd_div_kts) <= spd_max):   
-            pygame.draw.line(screen, WHITE, (spd_line_x_left, spd_line_ref_y-spd_div*4), (spd_line_x_right, spd_line_ref_y-spd_div*4), spd_line_width)
-            spd_text = pfdSpdTapeFont.render(format(int(spd_ref_spd+4*spd_div_kts)), True, WHITE)
-            spd_text_rect = spd_text.get_rect(right=spd_text_x, centery=spd_line_ref_y+spd_text_y_offset-spd_div*4)
-            screen.blit(spd_text, spd_text_rect)
-        if (spd_min <= int(spd_ref_spd+5*spd_div_kts) <= spd_max):    
-            pygame.draw.line(screen, WHITE, (spd_line_x_left, spd_line_ref_y-spd_div*5), (spd_line_x_right, spd_line_ref_y-spd_div*5), spd_line_width)
-            # spd_text = pfdSpdTapeFont.render(format(int(spd_ref_spd+5*spd_div_kts)), True, WHITE)
-            # spd_text_rect = spd_text.get_rect(right=spd_text_x, centery=spd_line_ref_y+spd_text_y_offset-spd_div*5)
-            # screen.blit(spd_text, spd_text_rect)
-        if (spd_min <= int(spd_ref_spd+6*spd_div_kts) <= spd_max):    
-            pygame.draw.line(screen, WHITE, (spd_line_x_left, spd_line_ref_y-spd_div*6), (spd_line_x_right, spd_line_ref_y-spd_div*6), spd_line_width)
-            spd_text = pfdSpdTapeFont.render(format(int(spd_ref_spd+6*spd_div_kts)), True, WHITE)
-            spd_text_rect = spd_text.get_rect(right=spd_text_x, centery=spd_line_ref_y+spd_text_y_offset-spd_div*6)
-            screen.blit(spd_text, spd_text_rect)
-        if (spd_min <= int(spd_ref_spd+7*spd_div_kts) <= spd_max):   
-            pygame.draw.line(screen, WHITE, (spd_line_x_left, spd_line_ref_y-spd_div*7), (spd_line_x_right, spd_line_ref_y-spd_div*7), spd_line_width)
-            # spd_text = pfdSpdTapeFont.render(format(int(spd_ref_spd+7*spd_div_kts)), True, WHITE)
-            # spd_text_rect = spd_text.get_rect(right=spd_text_x, centery=spd_line_ref_y+spd_text_y_offset-spd_div*7)
-            # screen.blit(spd_text, spd_text_rect)
-        if (spd_min <= int(spd_ref_spd+8*spd_div_kts) <= spd_max):    
-            pygame.draw.line(screen, WHITE, (spd_line_x_left, spd_line_ref_y-spd_div*8), (spd_line_x_right, spd_line_ref_y-spd_div*8), spd_line_width)
-            spd_text = pfdSpdTapeFont.render(format(int(spd_ref_spd+8*spd_div_kts)), True, WHITE)
-            spd_text_rect = spd_text.get_rect(right=spd_text_x, centery=spd_line_ref_y+spd_text_y_offset-spd_div*8)
-            screen.blit(spd_text, spd_text_rect)
-        if (spd_min <= int(spd_ref_spd+9*spd_div_kts) <= spd_max):   
-            pygame.draw.line(screen, WHITE, (spd_line_x_left, spd_line_ref_y-spd_div*9), (spd_line_x_right, spd_line_ref_y-spd_div*9), spd_line_width)
-            # spd_text = pfdSpdTapeFont.render(format(int(spd_ref_spd+9*spd_div_kts)), True, WHITE)
-            # spd_text_rect = spd_text.get_rect(right=spd_text_x, centery=spd_line_ref_y+spd_text_y_offset-spd_div*9)
-            # screen.blit(spd_text, spd_text_rect)
-        if (spd_min <= int(spd_ref_spd+10*spd_div_kts) <= spd_max):    
-            pygame.draw.line(screen, WHITE, (spd_line_x_left, spd_line_ref_y-spd_div*10), (spd_line_x_right, spd_line_ref_y-spd_div*10), spd_line_width)
-            spd_text = pfdSpdTapeFont.render(format(int(spd_ref_spd+10*spd_div_kts)), True, WHITE)
-            spd_text_rect = spd_text.get_rect(right=spd_text_x, centery=spd_line_ref_y+spd_text_y_offset-spd_div*10)
-            screen.blit(spd_text, spd_text_rect)
-
-
-        # Altitude Tape
-
-        pygame.draw.rect(screen, BOEING_GRAY, pygame.Rect(623, 105, 110, 645))  # Background; x, y, width, height
-
-        alt_min = -2000
-        alt_max = 36000
-
-        alt_tape_value = drv_indAltFt
-        if alt_tape_value < alt_min:
-            alt_tape_value = alt_min
-        if alt_tape_value > alt_max:
-            alt_tape_value = alt_max
-
-
-        alt_pointer_y = 427     # px
-        alt_line_x_left = 625   # px
-        alt_line_x_right = 649  # px
-        alt_line_width = 3      # px
-        alt_div = 75            # px
-        alt_div_ft = 100        # ft
-        alt_ft_to_px = 100/75   # 1.33...
-        alt_lapse = 300         # px, full scale 600
-        alt_text_x = 653        # px
-        alt_text_y_offset = -12 # -px
-
-        if abs(alt_tape_value/alt_ft_to_px) < alt_lapse:
-            alt_line_section = 1
-        else:
-            alt_line_section = math.ceil((abs(alt_tape_value)/alt_ft_to_px-alt_lapse)/(2*alt_lapse))+1
-        if alt_tape_value/alt_ft_to_px < 0:
-            alt_line_section = -alt_line_section
-
-        if alt_line_section >= 0:
-            alt_line_ref_y = round( alt_pointer_y + (alt_tape_value/alt_ft_to_px) - (alt_line_section-1)*2*alt_lapse)
-            alt_ref_alt = (alt_line_section-1)*round(2*alt_lapse*alt_ft_to_px, -1)
-        else:
-            alt_line_ref_y = round( alt_pointer_y + (alt_tape_value/alt_ft_to_px) - (alt_line_section+1)*2*alt_lapse)
-            alt_ref_alt = (alt_line_section+1)*round(2*alt_lapse*alt_ft_to_px, -1)
-
-        if (alt_min <= int(alt_ref_alt-8*alt_div_ft) <= alt_max):
-            pygame.draw.line(screen, WHITE, (alt_line_x_left, alt_line_ref_y+alt_div*8), (alt_line_x_right, alt_line_ref_y+alt_div*8), alt_line_width)
-            alt_text = pfdAltTapeFont.render(format(int(alt_ref_alt-8*alt_div_ft)), True, WHITE)
-            screen.blit(alt_text, (alt_text_x, alt_line_ref_y+alt_text_y_offset+alt_div*8))
-        if (alt_min <= int(alt_ref_alt-7*alt_div_ft) <= alt_max):
-            pygame.draw.line(screen, WHITE, (alt_line_x_left, alt_line_ref_y+alt_div*7), (alt_line_x_right, alt_line_ref_y+alt_div*7), alt_line_width)
-            # alt_text = pfdAltTapeFont.render(format(int(alt_ref_alt-7*alt_div_ft)), True, WHITE)
-            # screen.blit(alt_text, (alt_text_x, alt_line_ref_y+alt_text_y_offset+alt_div*7))
-        if (alt_min <= int(alt_ref_alt-6*alt_div_ft) <= alt_max):    
-            pygame.draw.line(screen, WHITE, (alt_line_x_left, alt_line_ref_y+alt_div*6), (alt_line_x_right, alt_line_ref_y+alt_div*6), alt_line_width)
-            alt_text = pfdAltTapeFont.render(format(int(alt_ref_alt-6*alt_div_ft)), True, WHITE)
-            screen.blit(alt_text, (alt_text_x, alt_line_ref_y+alt_text_y_offset+alt_div*6))
-        if (alt_min <= int(alt_ref_alt-5*alt_div_ft) <= alt_max):    
-            pygame.draw.line(screen, WHITE, (alt_line_x_left, alt_line_ref_y+alt_div*5), (alt_line_x_right, alt_line_ref_y+alt_div*5), alt_line_width)
-            # alt_text = pfdAltTapeFont.render(format(int(alt_ref_alt-5*alt_div_ft)), True, WHITE)
-            # screen.blit(alt_text, (alt_text_x, alt_line_ref_y+alt_text_y_offset+alt_div*5))
-        if (alt_min <= int(alt_ref_alt-4*alt_div_ft) <= alt_max):
-            pygame.draw.line(screen, WHITE, (alt_line_x_left, alt_line_ref_y+alt_div*4), (alt_line_x_right, alt_line_ref_y+alt_div*4), alt_line_width)
-            alt_text = pfdAltTapeFont.render(format(int(alt_ref_alt-4*alt_div_ft)), True, WHITE)
-            screen.blit(alt_text, (alt_text_x, alt_line_ref_y+alt_text_y_offset+alt_div*4))
-        if (alt_min <= int(alt_ref_alt-3*alt_div_ft) <= alt_max):    
-            pygame.draw.line(screen, WHITE, (alt_line_x_left, alt_line_ref_y+alt_div*3), (alt_line_x_right, alt_line_ref_y+alt_div*3), alt_line_width)
-            # alt_text = pfdAltTapeFont.render(format(int(alt_ref_alt-3*alt_div_ft)), True, WHITE)
-            # screen.blit(alt_text, (alt_text_x, alt_line_ref_y+alt_text_y_offset+alt_div*3))
-        if (alt_min <= int(alt_ref_alt-2*alt_div_ft) <= alt_max):    
-            pygame.draw.line(screen, WHITE, (alt_line_x_left, alt_line_ref_y+alt_div*2), (alt_line_x_right, alt_line_ref_y+alt_div*2), alt_line_width)
-            alt_text = pfdAltTapeFont.render(format(int(alt_ref_alt-2*alt_div_ft)), True, WHITE)
-            screen.blit(alt_text, (alt_text_x, alt_line_ref_y+alt_text_y_offset+alt_div*2))
-        if (alt_min <= int(alt_ref_alt-alt_div_ft) <= alt_max):    
-            pygame.draw.line(screen, WHITE, (alt_line_x_left, alt_line_ref_y+alt_div), (alt_line_x_right, alt_line_ref_y+alt_div), alt_line_width)
-            # alt_text = pfdAltTapeFont.render(format(int(alt_ref_alt-alt_div_ft)), True, WHITE)
-            # screen.blit(alt_text, (alt_text_x, alt_line_ref_y+alt_text_y_offset+alt_div))
-                
-        if (alt_min <= int(alt_ref_alt) <= alt_max):    
-            pygame.draw.line(screen, WHITE, (alt_line_x_left, alt_line_ref_y), (alt_line_x_right, alt_line_ref_y), alt_line_width)  # Middle Line
-            alt_text = pfdAltTapeFont.render(format(int(alt_ref_alt)), True, WHITE)
-            screen.blit(alt_text, (alt_text_x, alt_line_ref_y+alt_text_y_offset))
-
-        if (alt_min <= int(alt_ref_alt+alt_div_ft) <= alt_max):     
-            pygame.draw.line(screen, WHITE, (alt_line_x_left, alt_line_ref_y-alt_div), (alt_line_x_right, alt_line_ref_y-alt_div), alt_line_width)
-            # alt_text = pfdAltTapeFont.render(format(int(alt_ref_alt+alt_div_ft)), True, WHITE)
-            # screen.blit(alt_text, (alt_text_x, alt_line_ref_y+alt_text_y_offset-alt_div))
-        if (alt_min <= int(alt_ref_alt+2*alt_div_ft) <= alt_max):     
-            pygame.draw.line(screen, WHITE, (alt_line_x_left, alt_line_ref_y-alt_div*2), (alt_line_x_right, alt_line_ref_y-alt_div*2), alt_line_width)
-            alt_text = pfdAltTapeFont.render(format(int(alt_ref_alt+2*alt_div_ft)), True, WHITE)
-            screen.blit(alt_text, (alt_text_x, alt_line_ref_y+alt_text_y_offset-alt_div*2))
-        if (alt_min <= int(alt_ref_alt+3*alt_div_ft) <= alt_max):     
-            pygame.draw.line(screen, WHITE, (alt_line_x_left, alt_line_ref_y-alt_div*3), (alt_line_x_right, alt_line_ref_y-alt_div*3), alt_line_width)
-            # alt_text = pfdAltTapeFont.render(format(int(alt_ref_alt+3*alt_div_ft)), True, WHITE)
-            # screen.blit(alt_text, (alt_text_x, alt_line_ref_y+alt_text_y_offset-alt_div*3))
-        if (alt_min <= int(alt_ref_alt+4*alt_div_ft) <= alt_max):    
-            pygame.draw.line(screen, WHITE, (alt_line_x_left, alt_line_ref_y-alt_div*4), (alt_line_x_right, alt_line_ref_y-alt_div*4), alt_line_width)
-            alt_text = pfdAltTapeFont.render(format(int(alt_ref_alt+4*alt_div_ft)), True, WHITE)
-            screen.blit(alt_text, (alt_text_x, alt_line_ref_y+alt_text_y_offset-alt_div*4))
-        if (alt_min <= int(alt_ref_alt+5*alt_div_ft) <= alt_max): 
-            pygame.draw.line(screen, WHITE, (alt_line_x_left, alt_line_ref_y-alt_div*5), (alt_line_x_right, alt_line_ref_y-alt_div*5), alt_line_width)
-            # alt_text = pfdAltTapeFont.render(format(int(alt_ref_alt+5*alt_div_ft)), True, WHITE)
-            # screen.blit(alt_text, (alt_text_x, alt_line_ref_y+alt_text_y_offset-alt_div*5))
-        if (alt_min <= int(alt_ref_alt+6*alt_div_ft) <= alt_max):     
-            pygame.draw.line(screen, WHITE, (alt_line_x_left, alt_line_ref_y-alt_div*6), (alt_line_x_right, alt_line_ref_y-alt_div*6), alt_line_width)
-            alt_text = pfdAltTapeFont.render(format(int(alt_ref_alt+6*alt_div_ft)), True, WHITE)
-            screen.blit(alt_text, (alt_text_x, alt_line_ref_y+alt_text_y_offset-alt_div*6))
-        if (alt_min <= int(alt_ref_alt+7*alt_div_ft) <= alt_max):     
-            pygame.draw.line(screen, WHITE, (alt_line_x_left, alt_line_ref_y-alt_div*7), (alt_line_x_right, alt_line_ref_y-alt_div*7), alt_line_width)
-            # alt_text = pfdAltTapeFont.render(format(int(alt_ref_alt+7*alt_div_ft)), True, WHITE)
-            # screen.blit(alt_text, (alt_text_x, alt_line_ref_y+alt_text_y_offset-alt_div*7))
-        if (alt_min <= int(alt_ref_alt+8*alt_div_ft) <= alt_max):    
-            pygame.draw.line(screen, WHITE, (alt_line_x_left, alt_line_ref_y-alt_div*8), (alt_line_x_right, alt_line_ref_y-alt_div*8), alt_line_width)
-            alt_text = pfdAltTapeFont.render(format(int(alt_ref_alt+8*alt_div_ft)), True, WHITE)
-            screen.blit(alt_text, (alt_text_x, alt_line_ref_y+alt_text_y_offset-alt_div*8))
-        
-        
-        # Vertical Speed Line
-        vspd_line_ctr_x_pos = 857
-        vspd_line_ctr_y_pos = 427
-        vspd_line_tie_x_pos = 778
-        vspd_line_width = 5
-        vspd_fpmPerPxTo1000 = 12.19
-        vspd_fpmPerPxTo2000 = 16.66
-        vspd_fpmPerPxTo6000 = 100.0
-
-        screen.blit(pfd_vspd_background, (0, 0))  # Background
-
-        if drv_baroVspdFpm >= 0:
-            if drv_baroVspdFpm <= 1000:
-                vspd_line_tie_y_pos = vspd_line_ctr_y_pos - round(drv_baroVspdFpm / vspd_fpmPerPxTo1000)
-            elif drv_baroVspdFpm <= 2000:
-                vspd_line_tie_y_pos = vspd_line_ctr_y_pos - round(1000 / vspd_fpmPerPxTo1000 + (drv_baroVspdFpm-1000) / vspd_fpmPerPxTo2000)
-            elif drv_baroVspdFpm <= 6000:
-                vspd_line_tie_y_pos = vspd_line_ctr_y_pos - round(1000 / vspd_fpmPerPxTo1000 + 1000 / vspd_fpmPerPxTo2000 + (drv_baroVspdFpm-2000) / vspd_fpmPerPxTo6000)
-            else:
-                vspd_line_tie_y_pos = vspd_line_ctr_y_pos - round(1000 / vspd_fpmPerPxTo1000 + 1000 / vspd_fpmPerPxTo2000 + 4000 / vspd_fpmPerPxTo6000)
-        else:
-            if drv_baroVspdFpm >= -1000:
-                vspd_line_tie_y_pos = vspd_line_ctr_y_pos + round(-drv_baroVspdFpm / vspd_fpmPerPxTo1000)
-            elif drv_baroVspdFpm >= -2000:
-                vspd_line_tie_y_pos = vspd_line_ctr_y_pos + round(1000 / vspd_fpmPerPxTo1000 + (-drv_baroVspdFpm-1000) / vspd_fpmPerPxTo2000)
-            elif drv_baroVspdFpm >= -6000:
-                vspd_line_tie_y_pos = vspd_line_ctr_y_pos + round(1000 / vspd_fpmPerPxTo1000 + 1000 / vspd_fpmPerPxTo2000 + (-drv_baroVspdFpm-2000) / vspd_fpmPerPxTo6000)
-            else:
-                vspd_line_tie_y_pos = vspd_line_ctr_y_pos + round(1000 / vspd_fpmPerPxTo1000 + 1000 / vspd_fpmPerPxTo2000 + 4000 / vspd_fpmPerPxTo6000)
-        
-        pygame.draw.line(screen, WHITE, (vspd_line_ctr_x_pos,vspd_line_ctr_y_pos), (vspd_line_tie_x_pos,vspd_line_tie_y_pos), vspd_line_width)
-
-        # Compass
-
-            # Pusula ayarları
-        pfdCompass_radius = 257  # Pusula yarıçapı      
-        pfdCompass_center_x = 390  # Pusula merkezinin x konumu
-        pfdCompass_center_y = 968   # Pusula merkezinin y konumu
-        pfdCompass_short_tick_length = 15  # Kısa çizgi uzunluğu
-        pfdCompass_long_tick_length = 25  # Uzun çizgi uzunluğu
-        pfdCompass_degree_line_thickness = 4  # Pusula derece çizgilerinin kalınlığı
-        
-            # Kerteriz çemberini çiz
-        pygame.draw.circle(screen, BOEING_GRAY, (pfdCompass_center_x, pfdCompass_center_y), pfdCompass_radius, 0)
-
-        for degree in range(0, 360, 10):
-            rad = math.radians(degree)
-            adjusted_angle = rad + math.radians(-drv_magHdg-90)
-            x1 = pfdCompass_center_x + (pfdCompass_radius - pfdCompass_short_tick_length) * math.cos(adjusted_angle)
-            y1 = pfdCompass_center_y + (pfdCompass_radius - pfdCompass_short_tick_length) * math.sin(adjusted_angle)
-            x2 = pfdCompass_center_x + pfdCompass_radius * math.cos(adjusted_angle)
-            y2 = pfdCompass_center_y + pfdCompass_radius * math.sin(adjusted_angle)
-            if degree % 30 == 0:
-                x1 = pfdCompass_center_x + (pfdCompass_radius - pfdCompass_long_tick_length) * math.cos(adjusted_angle)
-                y1 = pfdCompass_center_y + (pfdCompass_radius - pfdCompass_long_tick_length) * math.sin(adjusted_angle)
-            pygame.draw.line(screen, WHITE, (x1, y1), (x2, y2), pfdCompass_degree_line_thickness)
-
-            if degree % 10 == 0:
-                text = str(degree // 10) if degree % 30 != 0 else str(degree // 10)
-                font = pfdCompass_font_large if degree % 30 == 0 else pfdCompass_font_small
-                text_angle = degree - 90
-                text_x = pfdCompass_center_x + (pfdCompass_radius - pfdCompass_long_tick_length - 20) * math.cos(adjusted_angle)
-                text_y = pfdCompass_center_y + (pfdCompass_radius - pfdCompass_long_tick_length - 20) * math.sin(adjusted_angle)
-                text_surface = font.render(text, True, WHITE)
-                text_rect = text_surface.get_rect(center=(text_x, text_y))
-                rotated_surface = pygame.transform.rotate(text_surface, -degree)
-                rotated_rect = rotated_surface.get_rect(center=(text_x, text_y))
-                screen.blit(rotated_surface, rotated_rect.topleft)
-
-        
-        # == PFD Background ==
-        screen.blit(pfdBackground, (0, 0))
-
-        # Vertical Speed Indicator
-        vspd_ind_min_value = 300    # Threshold absolute value to display
-
-        vspd_ind_value = round(drv_baroVspdFpm / 50) * 50
-        if vspd_ind_value >= 9999:
-            vspd_ind_value = 9999
-        if vspd_ind_value <= -9999:
-            vspd_ind_value = -9999
-
-        pfdVspd = pfdVspdFont.render(format(vspd_ind_value), True, WHITE)
-
-        if vspd_ind_value >= vspd_ind_min_value:
-            screen.blit(pfdVspd, (752, 200))
-        if vspd_ind_value <= -vspd_ind_min_value:
-            screen.blit(pfdVspd, (752, 635))
-
-        # Speed Indicator
-        pfdSpd = pfdSpdFont.render(format(round(spd_tape_value)), True, WHITE)
-        screen.blit(pfdSpd, (47, 406))
-
-        # Altitude Indicator
-        pfdAlt = pfdAltFont.render(format(int(round(alt_tape_value, -1))), True, WHITE)
-        screen.blit(pfdAlt, (671, 410))
-
-
-        # Altimeter Settings
-
-        if set_altStd == True:
-            if (int(drv_indAltFt/100) > shared_data.menu_pfd_trl) or transition_buffer_ta_trl:
-                pfdAltStd = pfdAltStdFont.render("STD", True, BOEING_GREEN)
-            else:
-                pfdAltStd = pfdAltStdFont.render("STD", True, BOEING_AMBER)
-                transition_buffer_trl_ta = True
-            screen.blit(pfdAltStd, (653, 755))
-
-            if (round(set_altStg, 1) != round(alt_stg_prev_alt_stg, 1)):
-                alt_stg_stby_buffer = True
-
-            if alt_stg_stby_buffer:
-                if shared_data.menu_pfd_altStgUnit == True:
-                    pfdAltStgStby = pfdAltStgStbyFont.render(f"{round(set_altStg/100)} HPA", True, WHITE)
-                else:
-                    pfdAltStgStby = pfdAltStgStbyFont.render("{:.2f} IN.".format(round(set_altStg/100*hpaToInhg, 2)), True, WHITE)
-                screen.blit(pfdAltStgStby, (646, 785))        
-        else:
-            alt_stg_stby_buffer = False
-            if (int(drv_indAltFt) < shared_data.menu_pfd_ta) or transition_buffer_trl_ta:
-                if shared_data.menu_pfd_altStgUnit == True:
-                    pfdAltStg = pfdAltStgFont.render(format(round(set_altStg/100)), True, BOEING_GREEN)
-                    pfdAltStgUnit = pfdAltStgUnitFont.render("HPA", True, BOEING_GREEN)
-                else:
-                    pfdAltStg = pfdAltStgFont.render("{:.2f}".format(round(set_altStg/100*hpaToInhg, 2)), True, BOEING_GREEN)
-                    pfdAltStgUnit = pfdAltStgUnitFont.render("IN.", True, BOEING_GREEN)
-            else:
-                if shared_data.menu_pfd_altStgUnit == True:
-                    pfdAltStg = pfdAltStgFont.render(format(round(set_altStg/100)), True, BOEING_AMBER)
-                    pfdAltStgUnit = pfdAltStgUnitFont.render("HPA", True, BOEING_AMBER)
-                    transition_buffer_ta_trl = True
-                else:
-                    pfdAltStg = pfdAltStgFont.render("{:.2f}".format(round(set_altStg/100*hpaToInhg, 2)), True, BOEING_AMBER)
-                    pfdAltStgUnit = pfdAltStgUnitFont.render("IN.", True, BOEING_AMBER)
-                    transition_buffer_ta_trl = True
-            screen.blit(pfdAltStgUnit, (720, 762))
-            screen.blit(pfdAltStg, (638, 760))
-        if  int(drv_indAltFt) < shared_data.menu_pfd_ta or int(drv_indAltFt/100) > shared_data.menu_pfd_trl:
-            transition_buffer_trl_ta = False
-            transition_buffer_ta_trl = False
-        alt_stg_prev_alt_stg = set_altStg
-
-        # Heading
-        pfdHdg = pfdHdgFont.render(format(round(drv_magHdg)), True, WHITE)
-        screen.blit(pfdHdg, (388, 50))
-
-
-        pygame.display.flip()
-        clock.tick(pfdTick)
         # --------------------

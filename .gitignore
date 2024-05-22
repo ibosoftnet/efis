@@ -11,3 +11,6 @@ MCU Software/project/Debug
 # Proteus 8
 Electronic Board/Project Backups
 Electronic Board/*.workspace
+
+# Others
+Display Software/temp
