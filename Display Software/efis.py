@@ -1069,8 +1069,7 @@ while True:
                     pfdAltStgStby = pfdAltStgStbyFont.render(f"{round(set_altStg/100)} HPA", True, WHITE)
                 else:
                     pfdAltStgStby = pfdAltStgStbyFont.render("{:.2f} IN.".format(round(set_altStg/100*hpaToInhg, 2)), True, WHITE)
-                screen.blit(pfdAltStgStby, (646, 785))
-            
+                screen.blit(pfdAltStgStby, (646, 785))        
         else:
             alt_stg_stby_buffer = False
             if (int(drv_indAltFt) < shared_data.menu_pfd_ta) or transition_buffer_trl_ta:
