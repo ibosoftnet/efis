@@ -1,15 +1,110 @@
-import re
-from datetime import datetime
-import configparser
-import serial
-import logging
-import time
-import math
-import pygame
-import sys
-import tkinter as tk
-import threading
+# IboSoft EFIS Display Software
 
+# Libraries
+import re                       # Internal
+from datetime import datetime   # Internal
+import configparser             # Internal
+import serial                   # pyserial, external
+import logging                  # Internal
+import time                     # Internal
+import math                     # Internal
+import pygame                   # External
+import sys                      # Internal
+import tkinter as tk            # Internal
+import threading                # Internal
+
+# Functions
+
+def serialOpen():
+    try:
+        ser = serial.Serial(serialPortNum, serialBaudRate)
+        if not ser.is_open:
+            ser.open()
+    except serial.SerialException as e:
+        logging.error("Serial port error:", str(e))
+        print("Serial port error:", str(e))
+
+def take_sign(value):
+    if value < 0:
+        return -1
+    else:
+        return 1
+
+def convert_bool(value):
+    try:
+        return bool(int(value))
+    except ValueError:
+        return None
+def convert_float(value):
+    try:
+        return float(value)
+    except ValueError:
+        return None
+def convert_int(value):
+    try:
+        return int(value)
+    except ValueError:
+        return None
+
+# Dereceyi radyana çevirme fonksiyonu
+def degrees_to_radians(degrees):
+    return degrees * math.pi / 180
+
+# Arc çizme fonksiyonu
+def draw_arc(surface, color, center, radius, start_angle, end_angle, thickness):
+    # Convert angles to radians
+    start_angle_rad = math.radians(start_angle)
+    end_angle_rad = math.radians(end_angle)
+
+    # Calculate the number of segments needed to approximate the thickness
+    num_segments = int(thickness)
+
+    # Draw each segment of the arc
+    for i in range(num_segments):
+        outer_radius = radius + i
+        inner_radius = radius - thickness + i
+        outer_rect = pygame.Rect(center[0] - outer_radius, center[1] - outer_radius, outer_radius * 2, outer_radius * 2)
+        inner_rect = pygame.Rect(center[0] - inner_radius, center[1] - inner_radius, inner_radius * 2, inner_radius * 2)
+        pygame.draw.arc(surface, color, outer_rect, start_angle_rad, end_angle_rad, 1)
+        pygame.draw.arc(surface, color, inner_rect, start_angle_rad, end_angle_rad, 1)
+
+# İbre çizme fonksiyonu
+def draw_hand(surface, color, center, radius, angle, thickness):
+    angle_radians = degrees_to_radians(angle)
+    end_pos = (center[0] + radius * math.cos(angle_radians), center[1] - radius * math.sin(angle_radians))
+    pygame.draw.line(surface, color, center, end_pos, thickness)
+
+# Çentik çizme fonksiyonu
+def draw_ticks(surface, color, center, radius, start_angle, end_angle, tick_count, tick_length, thickness):
+    angle_interval = (end_angle - start_angle) / (tick_count - 1)
+    for i in range(tick_count):
+        angle = start_angle + i * angle_interval
+        angle_radians = degrees_to_radians(angle)
+        start_pos = (center[0] + radius * math.cos(angle_radians), center[1] - radius * math.sin(angle_radians))
+        end_pos = (center[0] + (radius - tick_length) * math.cos(angle_radians), center[1] - (radius - tick_length) * math.sin(angle_radians))
+        pygame.draw.line(surface, color, start_pos, end_pos, thickness)
+
+# Draw Arrow
+def draw_arrow(screen, color, start, end, thickness):
+    pygame.draw.line(screen, color, start, end, thickness)
+    
+    # Ok ucunu çizmek için yön ve açı hesaplamaları
+    rotation = math.atan2(start[1] - end[1], end[0] - start[0]) 
+    arrow_length = 10
+    arrow_angle = math.pi / 6
+
+    # Ok ucunun sağ tarafı
+    right_arrow_x = end[0] + arrow_length * math.cos(rotation + arrow_angle)
+    right_arrow_y = end[1] + arrow_length * math.sin(rotation + arrow_angle)
+    
+    # Ok ucunun sol tarafı
+    left_arrow_x = end[0] + arrow_length * math.cos(rotation - arrow_angle)
+    left_arrow_y = end[1] + arrow_length * math.sin(rotation - arrow_angle)
+    
+    pygame.draw.line(screen, color, end, (right_arrow_x, right_arrow_y), thickness)
+    pygame.draw.line(screen, color, end, (left_arrow_x, left_arrow_y), thickness)
+
+# --------------------
 
 # Config
 config = configparser.ConfigParser()
@@ -19,8 +114,6 @@ serialBaudRate = config.getint('SERIAL', 'BAUD_RATE')
 serialPortNum = config.get('SERIAL', 'PORT_NUM')
     # PFD
 pfdTick = config.getint('PFD', 'TICK')
-
-
 
 # Logging
 logging.basicConfig(filename='logs.log', level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -86,60 +179,10 @@ drv_kias = 0.0          # KIAS (kts)
 drv_ktas = 0.0          # KTAS (kts)
 drv_mach = 0.0          # Mach (Mach)
 drv_kcas = 0.0          # KCAS (kts)
-
-def take_sign(value):
-    if value < 0:
-        return -1
-    else:
-        return 1
-
-def convert_bool(value):
-    try:
-        return bool(int(value))
-    except ValueError:
-        return None
-def convert_float(value):
-    try:
-        return float(value)
-    except ValueError:
-        return None
-def convert_int(value):
-    try:
-        return int(value)
-    except ValueError:
-        return None
     
 # Serial Port
 ser = serial.Serial(serialPortNum, serialBaudRate)
-def serialOpen():
-    try:
-        ser = serial.Serial(serialPortNum, serialBaudRate)
-        if not ser.is_open:
-            ser.open()
-    except serial.SerialException as e:
-        logging.error("Serial port error:", str(e))
-        print("Serial port error:", str(e))
 
-# Draw Arrow
-def draw_arrow(screen, color, start, end, thickness):
-    pygame.draw.line(screen, color, start, end, thickness)
-    
-    # Ok ucunu çizmek için yön ve açı hesaplamaları
-    rotation = math.atan2(start[1] - end[1], end[0] - start[0]) 
-    arrow_length = 10
-    arrow_angle = math.pi / 6
-
-    # Ok ucunun sağ tarafı
-    right_arrow_x = end[0] + arrow_length * math.cos(rotation + arrow_angle)
-    right_arrow_y = end[1] + arrow_length * math.sin(rotation + arrow_angle)
-    
-    # Ok ucunun sol tarafı
-    left_arrow_x = end[0] + arrow_length * math.cos(rotation - arrow_angle)
-    left_arrow_y = end[1] + arrow_length * math.sin(rotation - arrow_angle)
-    
-    pygame.draw.line(screen, color, end, (right_arrow_x, right_arrow_y), thickness)
-    pygame.draw.line(screen, color, end, (left_arrow_x, left_arrow_y), thickness)
-    
 # --------------------
 # Shared Data
 class SharedData:
@@ -457,6 +500,8 @@ pfdAltStgStbyFont = pygame.font.Font('fonts/OCR-B/OCR-B.ttf', 12)
 pfdCompass_font_small = pygame.font.Font('fonts/OCR-B/OCR-B.ttf', 12)
 pfdCompass_font_large = pygame.font.Font('fonts/OCR-B/OCR-B.ttf', 16)
 
+pfdAoaFont = pygame.font.Font('fonts/OCR-B/OCR-B.ttf', 10)
+
 # Attitude Indicator
 pfd_att_img = pygame.image.load("pfd_symbology/pfd_att.png")
 pfd_att_rect = pfd_att_img.get_rect()
@@ -548,6 +593,21 @@ accel_arrowLimYDown = 319   # px
 accel_arrowDeathZone = 10   # px
 accel_arrowThickness = 4    # px
 accel_factor = 100
+    # Angle of Attack Indicator
+pfdAoaTextPos = (513,152)
+aoa_indicator_pos = (555, 147)
+aoa_arc_radius = 42
+aoa_arc_start_angle = -90
+aoa_arc_end_angle = 135
+aoa_thickness = 3
+aoa_needle_thickness = 4
+aoa_tick_count = 6
+aoa_tick_length = 8
+aoa_min = -90
+aoa_max = 135
+aoa_factor = 4.5
+
+
 
 # Performance and Limitations
 
@@ -1053,7 +1113,21 @@ while True:
         # Compass Pointer
         if magStatus:
             screen.blit(pfd_compass_pointer, pfd_compass_pointer_pos)           
-            
+
+        # Angel of Attack Indicator
+        if True:
+            aoa_indicator_value = aoa_angle * aoa_factor
+            if aoa_indicator_value < aoa_arc_start_angle:
+                aoa_indicator_value = aoa_arc_start_angle
+            if aoa_indicator_value > aoa_arc_end_angle:
+                aoa_indicator_value = aoa_arc_end_angle
+
+            draw_arc(screen, WHITE, aoa_indicator_pos, aoa_arc_radius, aoa_arc_start_angle, aoa_arc_end_angle, aoa_thickness-2)          
+            draw_ticks(screen, WHITE, aoa_indicator_pos, aoa_arc_radius, aoa_arc_start_angle, aoa_arc_end_angle, aoa_tick_count, aoa_tick_length, aoa_thickness)
+            draw_hand(screen, WHITE, aoa_indicator_pos, aoa_arc_radius, aoa_indicator_value, aoa_needle_thickness)
+            pfdAoaText = pfdAoaFont.render(format(round(aoa_indicator_value/aoa_factor, 1)), True, WHITE)
+            screen.blit(pfdAoaText, pfdAoaTextPos)
+                    
         # Heading [TEST]
         pfdHdg = pfdHdgFont.render(format(round(drv_magHdg)), True, WHITE)
         screen.blit(pfdHdg, (388, 50))
@@ -1220,4 +1294,5 @@ while True:
                 ser.write(f"!atg={float(int(shared_data.menu_pfd_altStgInHg/constHpaToInhg*100))}\r\n".encode('ascii'))
 
         ser.write("+\r\n+\r\n".encode('ascii'))
+
         # --------------------
