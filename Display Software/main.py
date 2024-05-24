@@ -17,7 +17,10 @@ import threading                # Internal
 # Serial Port
 
 ser = None
-serialExceptionDelayTime = 2    # seconds
+serialExceptionDelayTime = 2        # s
+dataTimeoutThr = 0.1          # s
+dataLowRateThr = 100          # ms
+dataTimeout = True                  # For determining if data is timeout
 
 def start_serial_port():
     try:
@@ -83,13 +86,27 @@ def draw_hand(surface, color, center, radius, angle, thickness):
     pygame.draw.line(surface, color, center, end_pos, thickness)
 
 # Çentik çizme fonksiyonu
-def draw_ticks(surface, color, center, radius, start_angle, end_angle, tick_count, tick_length, thickness):
+def draw_ticks_in(surface, color, center, radius, start_angle, end_angle, tick_count, tick_length, thickness):
     angle_interval = (end_angle - start_angle) / (tick_count - 1)
     for i in range(tick_count):
         angle = start_angle + i * angle_interval
         angle_radians = degrees_to_radians(angle)
         start_pos = (center[0] + radius * math.cos(angle_radians), center[1] - radius * math.sin(angle_radians))
         end_pos = (center[0] + (radius - tick_length) * math.cos(angle_radians), center[1] - (radius - tick_length) * math.sin(angle_radians))
+        pygame.draw.line(surface, color, start_pos, end_pos, thickness)
+
+def draw_ticks_out(surface, color, center, radius, start_angle, end_angle, tick_count, tick_length, thickness):
+    angle_interval = (end_angle - start_angle) / (tick_count - 1)
+    for i in range(tick_count):
+        angle = start_angle + i * angle_interval
+        angle_radians = degrees_to_radians(angle)
+        
+        # Çentiğin başlayacağı nokta (çemberin üzerinde)
+        start_pos = (center[0] + radius * math.cos(angle_radians), center[1] - radius * math.sin(angle_radians))
+        
+        # Çentiğin biteceği nokta (çemberin dışına doğru)
+        end_pos = (center[0] + (radius + tick_length) * math.cos(angle_radians), center[1] - (radius + tick_length) * math.sin(angle_radians))
+        
         pygame.draw.line(surface, color, start_pos, end_pos, thickness)
 
 # Draw Arrow
@@ -178,7 +195,7 @@ diff_pressPa = 0.0      # (Pa)
 drv_pitch = 0.0         # Pitch (deg)
 drv_roll = 0.0          # Roll (deg)
 drv_turnRate = 0.0      # Turn Rate (deg/s)
-drv_magHdg = 0.0           # (deg)
+drv_magHdg = 0.0        # (deg)
 drv_SATC = 0.0          # SAT (C)
 drv_pressAltFt = 0.0    # Pressure Alt (ft)
 drv_baroVspdFpm = 0.0   # Vertical Speed (fpm)
@@ -483,6 +500,8 @@ pfd_flag_spd = pygame.image.load("pfd_flags/pfd_flag_spd.png")
 pfd_flag_spd_pos = (88,373)
 pfd_flag_vert = pygame.image.load("pfd_flags/pfd_flag_vert.png")
 pfd_flag_vert_pos = (789, 359)
+pfd_flag_data_rate = pygame.image.load("pfd_flags/pfd_flag_data_rate.png")
+pfd_flag_data_rate_pos = (30, 770)
 
 # Fonts
 pfdSpdFont = pygame.font.Font('fonts/OCR-B/OCR-B.ttf', 24)
@@ -506,6 +525,11 @@ pfdCompass_font_small = pygame.font.Font('fonts/OCR-B/OCR-B.ttf', 12)
 pfdCompass_font_large = pygame.font.Font('fonts/OCR-B/OCR-B.ttf', 16)
 
 pfdAoaFont = pygame.font.Font('fonts/OCR-B/OCR-B.ttf', 10)
+
+pfdGFont = pygame.font.Font('fonts/OCR-B/OCR-B.ttf', 10)
+
+pfdDataTimeoutFont = pygame.font.Font('fonts/OCR-B/OCR-B.ttf', 24)
+pfdDataLowRateFont = pygame.font.Font('fonts/OCR-B/OCR-B.ttf', 16)
 
 # Attitude Indicator
 pfd_att_img = pygame.image.load("pfd_symbology/pfd_att.png")
@@ -590,6 +614,18 @@ pfdCompass_short_tick_length = 15   # Kısa çizgi uzunluğu
 pfdCompass_long_tick_length = 25    # Uzun çizgi uzunluğu
 pfdCompass_degree_line_thickness = 4  # Pusula derece çizgilerinin kalınlığı
 pfd_compass_pointer_pos = (374,690)
+    # Rate of Turn Indicator
+rot_arc_center_x = 390      # px
+rot_arc_center_y = 968      # px
+rot_arc_radius = 257        # px
+rot_arc_back_thickness = 3  # px
+rot_arc_front_thickness = 4 # px
+rot_tick_thickness = 2      # px
+rot_tick_long_length = 10   # px
+rot_tick_short_length = 6   # px
+rot_arc_limit = 40          # deg, on screen
+rot_scale_factor = 2
+
     # Speed Trend Arrow
 accel_arrowX = 128          # px
 accel_arrowCtrY = 427       # px
@@ -610,9 +646,22 @@ aoa_tick_count = 6
 aoa_tick_length = 8
 aoa_min = -90
 aoa_max = 135
-aoa_factor = 4.5
-
-
+aoa_scale_factor = 4.5
+    # Vertical G Indicator
+pfdGTextPos = (233,152)
+g_indicator_pos = (221, 147)
+g_arc_radius = 42
+g_arc_start_angle = 90
+g_arc_end_angle = 270
+g_thickness = 3
+g_needle_thickness = 4
+g_tick_count = 5
+g_tick_length = 8
+g_min = -90
+g_max = 135
+g_scale_factor = 22.5
+    # Error Messages
+pfdDataTimeoutPos = (SCREEN_WIDTH/2, 20)  # Center referenced
 
 # Performance and Limitations
 
@@ -995,6 +1044,7 @@ while True:
                 # Kerteriz çemberini çiz
             pygame.draw.circle(screen, BOEING_GRAY, (pfdCompass_center_x, pfdCompass_center_y), pfdCompass_radius, 0)
 
+            text_angle = drv_magHdg + 10    # Kerteriziz 0 noktası sabit olduğu için üst kısımdaki yazıların düz görünmesini sağlamak için. +10 ise aşağıda -10 yapılacağı için ilk yazının düz olması için.
             for degree in range(0, 360, 10):
                 rad = math.radians(degree)
                 adjusted_angle = rad + math.radians(-drv_magHdg-90)
@@ -1010,12 +1060,12 @@ while True:
                 if degree % 10 == 0:
                     text = str(degree // 10) if degree % 30 != 0 else str(degree // 10)
                     font = pfdCompass_font_large if degree % 30 == 0 else pfdCompass_font_small
-                    text_angle = degree - 90
+                    text_angle = text_angle - 10
                     text_x = pfdCompass_center_x + (pfdCompass_radius - pfdCompass_long_tick_length - 20) * math.cos(adjusted_angle)
                     text_y = pfdCompass_center_y + (pfdCompass_radius - pfdCompass_long_tick_length - 20) * math.sin(adjusted_angle)
                     text_surface = font.render(text, True, WHITE)
                     text_rect = text_surface.get_rect(center=(text_x, text_y))
-                    rotated_surface = pygame.transform.rotate(text_surface, -degree)
+                    rotated_surface = pygame.transform.rotate(text_surface, text_angle)
                     rotated_rect = rotated_surface.get_rect(center=(text_x, text_y))
                     screen.blit(rotated_surface, rotated_rect.topleft)
 
@@ -1033,6 +1083,30 @@ while True:
 
         # == PFD BACKGROUND ==
         screen.blit(pfdBackground, (0, 0))
+
+        # Rate of Turn Indicator
+        if imuStatus:
+            rot_value = -drv_turnRate * rot_scale_factor
+
+            if abs(rot_value) > rot_arc_limit:
+                if rot_value > 0:
+                    rot_value = rot_arc_limit
+                else:
+                    rot_value = -rot_arc_limit
+
+            draw_arc(screen, WHITE, (rot_arc_center_x, rot_arc_center_y), rot_arc_radius, (90-rot_arc_limit), (90+rot_arc_limit), (rot_arc_back_thickness-2))
+            draw_ticks_out(screen, WHITE, (rot_arc_center_x, rot_arc_center_y), rot_arc_radius, (90-20*rot_scale_factor), (90+20*rot_scale_factor), 5, rot_tick_long_length, rot_tick_thickness)
+            draw_ticks_out(screen, WHITE, (rot_arc_center_x, rot_arc_center_y), rot_arc_radius, (90-6*rot_scale_factor), (90+6*rot_scale_factor), 9, rot_tick_short_length, rot_tick_thickness)
+            draw_ticks_out(screen, WHITE, (rot_arc_center_x, rot_arc_center_y), rot_arc_radius, (90-6*rot_scale_factor), (90+6*rot_scale_factor), 5, rot_tick_long_length, rot_tick_thickness)
+            
+            if rot_value > 0:
+                draw_arc(screen, BOEING_GREEN, (rot_arc_center_x, rot_arc_center_y), rot_arc_radius, (90), (90+rot_value), (rot_arc_front_thickness-2))
+            if rot_value < 0:
+                draw_arc(screen, BOEING_GREEN, (rot_arc_center_x, rot_arc_center_y), rot_arc_radius, (90+rot_value), (90), (rot_arc_front_thickness-2))
+            
+        # Compass Pointer
+        if magStatus:
+            screen.blit(pfd_compass_pointer, pfd_compass_pointer_pos)  
 
         # Vertical Speed Indicator
         if pressStatus:
@@ -1113,25 +1187,37 @@ while True:
             if  int(drv_indAltFt) < shared_data.menu_pfd_ta or int(drv_indAltFt/100) > shared_data.menu_pfd_trl:
                 transition_buffer_trl_ta = False
                 transition_buffer_ta_trl = False
-            alt_stg_prev_alt_stg = set_altStg
+            alt_stg_prev_alt_stg = set_altStg   
 
-        # Compass Pointer
-        if magStatus:
-            screen.blit(pfd_compass_pointer, pfd_compass_pointer_pos)           
-
-        # Angel of Attack Indicator
+        # Angle of Attack Indicator
         if True:
-            aoa_indicator_value = aoa_angle * aoa_factor
+            aoa_indicator_value = aoa_angle * aoa_scale_factor
             if aoa_indicator_value < aoa_arc_start_angle:
                 aoa_indicator_value = aoa_arc_start_angle
             if aoa_indicator_value > aoa_arc_end_angle:
                 aoa_indicator_value = aoa_arc_end_angle
 
             draw_arc(screen, WHITE, aoa_indicator_pos, aoa_arc_radius, aoa_arc_start_angle, aoa_arc_end_angle, aoa_thickness-2)          
-            draw_ticks(screen, WHITE, aoa_indicator_pos, aoa_arc_radius, aoa_arc_start_angle, aoa_arc_end_angle, aoa_tick_count, aoa_tick_length, aoa_thickness)
+            draw_ticks_in(screen, WHITE, aoa_indicator_pos, aoa_arc_radius, aoa_arc_start_angle, aoa_arc_end_angle, aoa_tick_count, aoa_tick_length, aoa_thickness)
             draw_hand(screen, WHITE, aoa_indicator_pos, aoa_arc_radius, aoa_indicator_value, aoa_needle_thickness)
-            pfdAoaText = pfdAoaFont.render(format(round(aoa_indicator_value/aoa_factor, 1)), True, WHITE)
+            pfdAoaText = pfdAoaFont.render(format(round(aoa_indicator_value/aoa_scale_factor, 1), '.1f'), True, WHITE)
             screen.blit(pfdAoaText, pfdAoaTextPos)
+
+        
+        # Vertical G Indicator
+        if imuStatus:
+            g_indicator_value = -(imu_ay) * g_scale_factor + 180
+            if g_indicator_value < g_arc_start_angle:
+                g_indicator_value = g_arc_start_angle
+            if g_indicator_value > g_arc_end_angle:
+                g_indicator_value = g_arc_end_angle
+
+            draw_arc(screen, WHITE, g_indicator_pos, g_arc_radius, g_arc_start_angle, g_arc_end_angle, g_thickness-2)          
+            draw_ticks_in(screen, WHITE, g_indicator_pos, g_arc_radius, g_arc_start_angle, g_arc_end_angle, g_tick_count, g_tick_length, g_thickness)
+            draw_hand(screen, WHITE, g_indicator_pos, g_arc_radius, g_indicator_value, g_needle_thickness)
+            pfdGText = pfdGFont.render(format(round(imu_ay, 1), '.1f'), True, WHITE)
+            screen.blit(pfdGText, pfdGTextPos)
+
                     
         # Heading [TEST]
         pfdHdg = pfdHdgFont.render(format(round(drv_magHdg)), True, WHITE)
@@ -1148,13 +1234,23 @@ while True:
             screen.blit(pfd_flag_vert, pfd_flag_vert_pos)
         if not diffStatus:
             screen.blit(pfd_flag_spd, pfd_flag_spd_pos)
+        if messageInterval > dataLowRateThr:
+            screen.blit(pfd_flag_data_rate, pfd_flag_data_rate_pos)
 
+        # Error Messages
+        if dataTimeout:
+            pfdDataTimeout = pfdDataTimeoutFont.render("DATA TIMEOUT", True, BOEING_RED)    # Yazıyı render et           
+            text_rect = pfdDataTimeout.get_rect()               # Yazının boyutlarını al
+            text_rect.center = pfdDataTimeoutPos                # Pozisyonu yazının merkezine göre ayarla     
+            background_rect = text_rect.inflate(10, 5)          # Arka planın boyutunu yazıya göre biraz daha büyük yap        
+            pygame.draw.rect(screen, BLACK, background_rect)    # Arka planı çiz       
+            screen.blit(pfdDataTimeout, text_rect)              # Yazıyı çiz
 
         pygame.display.flip()
         clock.tick(pfdTick)
         # --------------------
 
-        
+        dataTimeout = True
         try:
             # Seri port açık değilse veya port None ise yeniden başlatmayı dene
             if ser is None or not ser.is_open:
@@ -1167,14 +1263,19 @@ while True:
                 
    
                 # Process incoming data
-                while True:       
+                while True:      
+                    start_time = time.time()  # Döngü başlangıç zamanını al
                     while True:
                         try:
+                            if (time.time() - start_time) > dataTimeoutThr:  # 200 ms'yi kontrol et
+                                dataTimeout = True
+                                break  # İç döngüden çık
                             incoming_data = ser.readline().decode('ascii').strip()
-                            break
+                            dataTimeout = False
+                            break  # Başarılı bir okuma yapıldığında iç döngüden çık
                         except UnicodeDecodeError:
-                            continue
-
+                            continue  # UnicodeDecodeError oluşursa devam et
+                    
                     # Veri işleme işaretlerine göre veriyi parçala
                     if incoming_data.startswith('/'):
                         key, value = incoming_data[1:].split('=')
