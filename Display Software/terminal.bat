@@ -1,4 +1,8 @@
 REM Activate the virtual environment
-call cmd.exe /k "%~dp0venv\Scripts\activate.bat"
+call .\venv\Scripts\activate.bat
+
+cd python
+
+cmd.exe
 
 pause
