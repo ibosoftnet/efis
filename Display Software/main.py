@@ -13,17 +13,25 @@ import sys                      # Internal
 import tkinter as tk            # Internal
 import threading                # Internal
 
-# Functions
+# --------------------
+# Serial Port
 
-def serialOpen():
+ser = None
+serialExceptionDelayTime = 2    # seconds
+
+def start_serial_port():
     try:
         ser = serial.Serial(serialPortNum, serialBaudRate)
-        if not ser.is_open:
-            ser.open()
-    except serial.SerialException as e:
-        logging.error("Serial port error:", str(e))
-        print("Serial port error:", str(e))
+        logging.info(f"Seri port {serialBaudRate} başarıyla açıldı.")
+        return ser
+    except Exception as e:
+        logging.error(f"Seri port açılamadı: {e}")
+        time.sleep(serialExceptionDelayTime)
+        return None
+        
+# --------------------
 
+# Functions
 def take_sign(value):
     if value < 0:
         return -1
@@ -179,9 +187,6 @@ drv_kias = 0.0          # KIAS (kts)
 drv_ktas = 0.0          # KTAS (kts)
 drv_mach = 0.0          # Mach (Mach)
 drv_kcas = 0.0          # KCAS (kts)
-    
-# Serial Port
-ser = serial.Serial(serialPortNum, serialBaudRate)
 
 # --------------------
 # Shared Data
@@ -1149,150 +1154,163 @@ while True:
         clock.tick(pfdTick)
         # --------------------
 
+        
+        try:
+            # Seri port açık değilse veya port None ise yeniden başlatmayı dene
+            if ser is None or not ser.is_open:
+                logging.warning("Seri port kapalı. Yeniden açmaya çalışılıyor...")
+                ser = start_serial_port()
+
+            if ser and ser.is_open:
+                # Seri port üzerinden veri gönderme veya alma işlemleri
+                # Örnek: ser.write(b'data') veya data = ser.readline()
+                
+   
                 # Process incoming data
-        while True:       
-            while True:
-                try:
-                    incoming_data = ser.readline().decode('ascii').strip()
-                    break
-                except serial.SerialException as e:
-                    logging.error("Serial port error:", str(e))
-                    print("Serial port error:", str(e))
-                    serialOpen()
-                except UnicodeDecodeError:
-                    continue
-                time.sleep(1)
+                while True:       
+                    while True:
+                        try:
+                            incoming_data = ser.readline().decode('ascii').strip()
+                            break
+                        except UnicodeDecodeError:
+                            continue
 
+                    # Veri işleme işaretlerine göre veriyi parçala
+                    if incoming_data.startswith('/'):
+                        key, value = incoming_data[1:].split('=')
+                        if key == 'i':
+                            messageInterval = convert_int(value)        
+                    elif incoming_data.startswith('!'):
+                        key, value = incoming_data[1:].split('=')
+                        if key == 'asd':
+                            set_altStd = convert_bool(value)
+                        elif key == 'atg':
+                            set_altStg = convert_float(value)
+                    elif incoming_data.startswith('%'):
+                        key, value = incoming_data[1:].split('=')
+                        if key == 'imu':
+                            imuStatus = convert_bool(value)
+                        elif key == 'mag':
+                            magStatus = convert_bool(value)
+                        elif key == 'prs':
+                            pressStatus = convert_bool(value)
+                        elif key == 'dif':
+                            diffStatus = convert_bool(value)
+                    elif incoming_data.startswith('$'):
+                        key, value = incoming_data[1:].split('=')
+                        if key == 'gn1':
+                            ag_onGnd1 = convert_bool(value)
+                        elif key == 'gn2':
+                            ag_onGnd2 = convert_bool(value)
+                        elif key == 'gn3':
+                            ag_onGnd3 = convert_bool(value)
+                        elif key == 'aoa':
+                            aoa_angle = convert_float(value)
+                        elif key == 'tat':
+                            temp_TATC = convert_float(value)
+                        elif key == 'ax':
+                            imu_ax = convert_float(value)
+                        elif key == 'ay':
+                            imu_ay = convert_float(value)
+                        elif key == 'az':
+                            imu_az = convert_float(value)
+                        elif key == 'gx':
+                            imu_gx = convert_float(value)
+                        elif key == 'gy':
+                            imu_gy = convert_float(value)
+                        elif key == 'gz':
+                            imu_gz = convert_float(value)
+                        elif key == 'prs':
+                            press_pressPa = convert_float(value)
+                        elif key == 'dif':
+                            diff_pressPa = convert_float(value)
+                    elif incoming_data.startswith('&'):
+                        key, value = incoming_data[1:].split('=')
+                        if key == 'pit':
+                            drv_pitch = convert_float(value)
+                        elif key == 'rol':
+                            drv_roll = convert_float(value)
+                        elif key == 'trn':
+                            drv_turnRate = convert_float(value)
+                        elif key == 'mhd':
+                            drv_magHdg = convert_float(value)
+                        elif key == 'sat':
+                            drv_SATC = convert_float(value)
+                        elif key == 'plt':
+                            drv_pressAltFt = convert_float(value)
+                        elif key == 'ilt':
+                            drv_indAltFt = convert_float(value)
+                        elif key == 'vsp':
+                            drv_baroVspdFpm = convert_float(value)
+                        elif key == 'ias':
+                            drv_kias = convert_float(value)
+                        elif key == 'cas':
+                            drv_kcas = convert_float(value)
+                        elif key == 'tas':
+                            drv_ktas = convert_float(value)
+                        elif key == 'mac':
+                            drv_mach = convert_float(value)
 
-            # Veri işleme işaretlerine göre veriyi parçala
-            if incoming_data.startswith('/'):
-                key, value = incoming_data[1:].split('=')
-                if key == 'i':
-                    messageInterval = convert_int(value)        
-            elif incoming_data.startswith('!'):
-                key, value = incoming_data[1:].split('=')
-                if key == 'asd':
-                    set_altStd = convert_bool(value)
-                elif key == 'atg':
-                    set_altStg = convert_float(value)
-            elif incoming_data.startswith('%'):
-                key, value = incoming_data[1:].split('=')
-                if key == 'imu':
-                    imuStatus = convert_bool(value)
-                elif key == 'mag':
-                    magStatus = convert_bool(value)
-                elif key == 'prs':
-                    pressStatus = convert_bool(value)
-                elif key == 'dif':
-                    diffStatus = convert_bool(value)
-            elif incoming_data.startswith('$'):
-                key, value = incoming_data[1:].split('=')
-                if key == 'gn1':
-                    ag_onGnd1 = convert_bool(value)
-                elif key == 'gn2':
-                    ag_onGnd2 = convert_bool(value)
-                elif key == 'gn3':
-                    ag_onGnd3 = convert_bool(value)
-                elif key == 'aoa':
-                    aoa_angle = convert_float(value)
-                elif key == 'tat':
-                    temp_TATC = convert_float(value)
-                elif key == 'ax':
-                    imu_ax = convert_float(value)
-                elif key == 'ay':
-                    imu_ay = convert_float(value)
-                elif key == 'az':
-                    imu_az = convert_float(value)
-                elif key == 'gx':
-                    imu_gx = convert_float(value)
-                elif key == 'gy':
-                    imu_gy = convert_float(value)
-                elif key == 'gz':
-                    imu_gz = convert_float(value)
-                elif key == 'prs':
-                    press_pressPa = convert_float(value)
-                elif key == 'dif':
-                    diff_pressPa = convert_float(value)
-            elif incoming_data.startswith('&'):
-                key, value = incoming_data[1:].split('=')
-                if key == 'pit':
-                    drv_pitch = convert_float(value)
-                elif key == 'rol':
-                    drv_roll = convert_float(value)
-                elif key == 'trn':
-                    drv_turnRate = convert_float(value)
-                elif key == 'mhd':
-                    drv_magHdg = convert_float(value)
-                elif key == 'sat':
-                    drv_SATC = convert_float(value)
-                elif key == 'plt':
-                    drv_pressAltFt = convert_float(value)
-                elif key == 'ilt':
-                    drv_indAltFt = convert_float(value)
-                elif key == 'vsp':
-                    drv_baroVspdFpm = convert_float(value)
-                elif key == 'ias':
-                    drv_kias = convert_float(value)
-                elif key == 'cas':
-                    drv_kcas = convert_float(value)
-                elif key == 'tas':
-                    drv_ktas = convert_float(value)
-                elif key == 'mac':
-                    drv_mach = convert_float(value)
+                    # İşlemi bitir
+                    elif incoming_data == '+':
+                        break
 
-            # İşlemi bitir
-            elif incoming_data == '+':
-                break
+                # Print Incoming Data
+                print("Incoming Data:")
+                print("messageInterval:", messageInterval)
+                print("set_altStd:", set_altStd)
+                print("set_altStg:", set_altStg)
+                print("ag_onGnd1:", ag_onGnd1)
+                print("ag_onGnd2:", ag_onGnd2)
+                print("ag_onGnd3:", ag_onGnd3)
+                print("aoa_angle:", aoa_angle)
+                print("temp_TATC:", temp_TATC)
+                print("imuStatus:", imuStatus)
+                print("imu_ax:", imu_ax)
+                print("imu_ay:", imu_ay)
+                print("imu_az:", imu_az)
+                print("imu_gx:", imu_gx)
+                print("imu_gy:", imu_gy)
+                print("imu_gz:", imu_gz)
+                print("magStatus:", magStatus)
+                print("pressStatus:", pressStatus)
+                print("press_pressPa:", press_pressPa)
+                print("diffStatus:", diffStatus)
+                print("diff_pressPa:", diff_pressPa)
+                print("drv_pitch:", drv_pitch)
+                print("drv_roll:", drv_roll)
+                print("drv_turnRate:", drv_turnRate)
+                print("drv_magHdg:", drv_magHdg)
+                print("drv_SATC:", drv_SATC)
+                print("drv_pressAltFt:", drv_pressAltFt)
+                print("drv_baroVspdFpm:", drv_baroVspdFpm)
+                print("drv_indAltFt:", drv_indAltFt)
+                print("drv_kias:", drv_kias)
+                print("drv_ktas:", drv_ktas)
+                print("drv_mach:", drv_mach)
+                print("drv_kcas:", drv_kcas)
 
-        # Print Incoming Data
-        print("Incoming Data:")
-        print("messageInterval:", messageInterval)
-        print("set_altStd:", set_altStd)
-        print("set_altStg:", set_altStg)
-        print("ag_onGnd1:", ag_onGnd1)
-        print("ag_onGnd2:", ag_onGnd2)
-        print("ag_onGnd3:", ag_onGnd3)
-        print("aoa_angle:", aoa_angle)
-        print("temp_TATC:", temp_TATC)
-        print("imuStatus:", imuStatus)
-        print("imu_ax:", imu_ax)
-        print("imu_ay:", imu_ay)
-        print("imu_az:", imu_az)
-        print("imu_gx:", imu_gx)
-        print("imu_gy:", imu_gy)
-        print("imu_gz:", imu_gz)
-        print("magStatus:", magStatus)
-        print("pressStatus:", pressStatus)
-        print("press_pressPa:", press_pressPa)
-        print("diffStatus:", diffStatus)
-        print("diff_pressPa:", diff_pressPa)
-        print("drv_pitch:", drv_pitch)
-        print("drv_roll:", drv_roll)
-        print("drv_turnRate:", drv_turnRate)
-        print("drv_magHdg:", drv_magHdg)
-        print("drv_SATC:", drv_SATC)
-        print("drv_pressAltFt:", drv_pressAltFt)
-        print("drv_baroVspdFpm:", drv_baroVspdFpm)
-        print("drv_indAltFt:", drv_indAltFt)
-        print("drv_kias:", drv_kias)
-        print("drv_ktas:", drv_ktas)
-        print("drv_mach:", drv_mach)
-        print("drv_kcas:", drv_kcas)
+                # --------------------
+                # Send data to Serial Port
+                ser.write("...\r\n#\r\n".encode('ascii'))
 
-        # --------------------
-        # Send data to Serial Port
-        ser.write("...\r\n#\r\n".encode('ascii'))
+                if set_altStd != shared_data.menu_pfd_altStgStd:
+                    ser.write(f"!asd={int(shared_data.menu_pfd_altStgStd)}\r\n".encode('ascii'))
 
-        if set_altStd != shared_data.menu_pfd_altStgStd:
-            ser.write(f"!asd={int(shared_data.menu_pfd_altStgStd)}\r\n".encode('ascii'))
+                if shared_data.menu_pfd_altStgUnit == True:
+                    if round(set_altStg/100) != shared_data.menu_pfd_altStgHpa:
+                        ser.write(f"!atg={float(int(shared_data.menu_pfd_altStgHpa*100))}\r\n".encode('ascii'))
+                else:
+                    if round(set_altStg/100*constHpaToInhg) != shared_data.menu_pfd_altStgInHg:
+                        ser.write(f"!atg={float(int(shared_data.menu_pfd_altStgInHg/constHpaToInhg*100))}\r\n".encode('ascii'))
 
-        if shared_data.menu_pfd_altStgUnit == True:
-            if round(set_altStg/100) != shared_data.menu_pfd_altStgHpa:
-                ser.write(f"!atg={float(int(shared_data.menu_pfd_altStgHpa*100))}\r\n".encode('ascii'))
-        else:
-            if round(set_altStg/100*constHpaToInhg) != shared_data.menu_pfd_altStgInHg:
-                ser.write(f"!atg={float(int(shared_data.menu_pfd_altStgInHg/constHpaToInhg*100))}\r\n".encode('ascii'))
+                ser.write("+\r\n+\r\n".encode('ascii'))
+                # --------------------    
+                pass
 
-        ser.write("+\r\n+\r\n".encode('ascii'))
-
-        # --------------------
+        except Exception as e:
+            logging.error(f"Seri port hatası: {e}")
+            if ser:
+                ser.close()
+                ser = None
+            time.sleep(serialExceptionDelayTime)
