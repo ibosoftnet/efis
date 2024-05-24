@@ -526,7 +526,7 @@ pfdCompass_font_large = pygame.font.Font('fonts/OCR-B/OCR-B.ttf', 16)
 
 pfdAoaFont = pygame.font.Font('fonts/OCR-B/OCR-B.ttf', 10)
 
-pfdGFont = pygame.font.Font('fonts/OCR-B/OCR-B.ttf', 10)
+pfdGFont = pygame.font.Font('fonts/OCR-B/OCR-B.ttf', 14)
 
 pfdDataTimeoutFont = pygame.font.Font('fonts/OCR-B/OCR-B.ttf', 24)
 pfdDataLowRateFont = pygame.font.Font('fonts/OCR-B/OCR-B.ttf', 16)
@@ -625,7 +625,6 @@ rot_tick_long_length = 10   # px
 rot_tick_short_length = 6   # px
 rot_arc_limit = 40          # deg, on screen
 rot_scale_factor = 2
-
     # Speed Trend Arrow
 accel_arrowX = 128          # px
 accel_arrowCtrY = 427       # px
@@ -648,18 +647,19 @@ aoa_min = -90
 aoa_max = 135
 aoa_scale_factor = 4.5
     # Vertical G Indicator
-pfdGTextPos = (233,152)
-g_indicator_pos = (221, 147)
+pfdGTextPos = (240,135)
+g_indicator_pos_x = 221
+g_indicator_pos_y = 147
 g_arc_radius = 42
-g_arc_start_angle = 90
-g_arc_end_angle = 270
+g_arc_start_angle = 45
+g_arc_end_angle = 315
 g_thickness = 3
 g_needle_thickness = 4
 g_tick_count = 5
 g_tick_length = 8
 g_min = -90
 g_max = 135
-g_scale_factor = 22.5
+g_scale_factor = 67.5
     # Error Messages
 pfdDataTimeoutPos = (SCREEN_WIDTH/2, 20)  # Center referenced
 
@@ -1206,17 +1206,22 @@ while True:
         
         # Vertical G Indicator
         if imuStatus:
-            g_indicator_value = -(imu_ay) * g_scale_factor + 180
+            g_indicator_value = -(imu_ay-1) * g_scale_factor + 180
             if g_indicator_value < g_arc_start_angle:
                 g_indicator_value = g_arc_start_angle
             if g_indicator_value > g_arc_end_angle:
                 g_indicator_value = g_arc_end_angle
 
-            draw_arc(screen, WHITE, g_indicator_pos, g_arc_radius, g_arc_start_angle, g_arc_end_angle, g_thickness-2)          
-            draw_ticks_in(screen, WHITE, g_indicator_pos, g_arc_radius, g_arc_start_angle, g_arc_end_angle, g_tick_count, g_tick_length, g_thickness)
-            draw_hand(screen, WHITE, g_indicator_pos, g_arc_radius, g_indicator_value, g_needle_thickness)
+            pfdG0Text = pfdGFont.render("0", True, WHITE)
+            screen.blit(pfdG0Text, (g_indicator_pos_x-10, g_indicator_pos_y+8))
+            pfdG2Text = pfdGFont.render("2", True, WHITE)
+            screen.blit(pfdG2Text, (g_indicator_pos_x-10, g_indicator_pos_y-30))
+            draw_arc(screen, WHITE, (g_indicator_pos_x, g_indicator_pos_y), g_arc_radius, g_arc_start_angle, g_arc_end_angle, g_thickness-2)          
+            draw_ticks_in(screen, WHITE, (g_indicator_pos_x, g_indicator_pos_y), g_arc_radius, g_arc_start_angle, g_arc_end_angle, g_tick_count, g_tick_length, g_thickness)
+            draw_hand(screen, WHITE, (g_indicator_pos_x, g_indicator_pos_y), g_arc_radius, g_indicator_value, g_needle_thickness)
             pfdGText = pfdGFont.render(format(round(imu_ay, 1), '.1f'), True, WHITE)
             screen.blit(pfdGText, pfdGTextPos)
+            
 
                     
         # Heading [TEST]
