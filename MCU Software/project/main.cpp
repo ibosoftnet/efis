@@ -172,9 +172,12 @@ void loop() {
 	drv_roll = atan2(imu_ax, imu_ay) * const180OverPi;
 	// Turn Rate
 	drv_turnRate = -imu_gy / cos(drv_roll/const180OverPi);
-	// Magnetic Heading
-	drv_magHdg = atan2((magx) * cos(drv_roll / const180OverPi) + (magz) * sin(drv_roll / const180OverPi), (magy) * cos(drv_pitch / const180OverPi) + (magx) * sin(drv_roll / const180OverPi) * sin(drv_pitch / const180OverPi) - (magz) * cos(drv_roll / const180OverPi) * sin(drv_pitch / const180OverPi)) * const180OverPi;
-	if (drv_magHdg < 0) {drv_magHdg += 360;}
+	// Tilt Uncorrected Magnetic Heading
+	drv_magUncorrHdg = atan2(magx, magz) * const180OverPi;
+	if (drv_magUncorrHdg < 0) {drv_magUncorrHdg += 360;}
+	// Tilt Corrected Magnetic Heading
+	drv_magCorrHdg = atan2((magx) * cos(drv_roll / const180OverPi) + (magz) * sin(drv_roll / const180OverPi), (magy) * cos(drv_pitch / const180OverPi) + (magx) * sin(drv_roll / const180OverPi) * sin(drv_pitch / const180OverPi) - (magz) * cos(drv_roll / const180OverPi) * sin(drv_pitch / const180OverPi)) * const180OverPi;
+	if (drv_magCorrHdg < 0) {drv_magCorrHdg += 360;}
 	// SAT
 	drv_SATC = temp_TATC; // su anlik donusum faktoru yok.
 	// Pressure ALT ft
@@ -571,8 +574,10 @@ void dataOut() {
 	Serial.print("&rol="); Serial.println(drv_roll);
 	// Turn Rate (dps)
 	Serial.print("&trn="); Serial.println(drv_turnRate);
-	// Magnetic Heading (deg)
-	Serial.print("&mhd="); Serial.println(drv_magHdg);
+	// Tilt Uncorrected Magnetic Heading (deg)
+	Serial.print("&umh="); Serial.println(drv_magUncorrHdg);
+	// Tilt Corrected Magnetic Heading (deg)
+	Serial.print("&cmh="); Serial.println(drv_magCorrHdg);
 	// SAT (celsius)
 	Serial.print("&sat="); Serial.println(drv_SATC);
 	// Preessure Alt (ft)

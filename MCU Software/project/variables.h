@@ -188,8 +188,10 @@ float drv_pitch;
 float drv_roll;
 // Turn Rate
 float drv_turnRate;
-// Magnetic Heading
-float drv_magHdg;
+// Tilt Uncorrected Magnetic Heading
+float drv_magUncorrHdg;
+// Tilt Corrected Magnetic Heading
+float drv_magCorrHdg;
 // SAT
 float drv_SATC;
 // Pressure Alt ft

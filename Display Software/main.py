@@ -195,7 +195,8 @@ diff_pressPa = 0.0      # (Pa)
 drv_pitch = 0.0         # Pitch (deg)
 drv_roll = 0.0          # Roll (deg)
 drv_turnRate = 0.0      # Turn Rate (deg/s)
-drv_magHdg = 0.0        # (deg)
+drv_magUncorrHdg = 0.0  # (deg)
+drv_magCorrHdg = 0.0    # (deg)
 drv_SATC = 0.0          # SAT (C)
 drv_pressAltFt = 0.0    # Pressure Alt (ft)
 drv_baroVspdFpm = 0.0   # Vertical Speed (fpm)
@@ -206,16 +207,27 @@ drv_mach = 0.0          # Mach (Mach)
 drv_kcas = 0.0          # KCAS (kts)
 
 # --------------------
-# Shared Data
 class SharedData:
     def __init__(self):
+        # Menu
         self.menu_pfd_altStgUnit = True  # True: hPa, False: inHg
         self.menu_pfd_altStgHpa = 1013
         self.menu_pfd_altStgInHg = 29.92
         self.menu_pfd_altStgStd = False  # True: STD
         self.menu_pfd_ta = 10000
         self.menu_pfd_trl = 100
+        self.menu_pfd_magTru = False  # True: TRU, False: MAG
+        self.menu_pfd_magCorr = True  # True: Corrected, False: Uncorrected
+        self.menu_pfd_magVar = 0.0
+        self.menu_pfd_resetG = False  # Reset G Peaks
+
+        # PFD
+        self.g_peak_min = 99.9
+        self.g_peak_max = -99.9
+
+
         self.lock = threading.Lock()  # You can use threading.Lock() here if needed
+# --------------------
 
 # Menu
 class App(tk.Tk):
@@ -230,6 +242,13 @@ class App(tk.Tk):
         self.menu_pfd_altStgStd = tk.BooleanVar(value=shared_data.menu_pfd_altStgStd)
         self.menu_pfd_ta = tk.IntVar(value=shared_data.menu_pfd_ta)
         self.menu_pfd_trl = tk.IntVar(value=shared_data.menu_pfd_trl)
+        self.menu_pfd_magTru = tk.BooleanVar(value=shared_data.menu_pfd_magTru)
+        self.menu_pfd_magCorr = tk.BooleanVar(value=shared_data.menu_pfd_magCorr)
+        self.menu_pfd_magVar = tk.DoubleVar(value=shared_data.menu_pfd_magVar)
+        self.menu_pfd_resetG = tk.BooleanVar(value=shared_data.menu_pfd_resetG)
+
+        self.g_peak_max = tk.DoubleVar(value=shared_data.g_peak_max)
+        self.g_peak_min = tk.DoubleVar(value=shared_data.g_peak_min)
 
         self.title("Control Display Unit")
         self.geometry("400x500")
@@ -282,9 +301,20 @@ class App(tk.Tk):
         self.minimums_button = tk.Button(self.content_frame, text="Minimums Settings", command=self.show_minimums_menu, font=('Arial', 10, 'bold'))
         self.minimums_button.pack(pady=10)
 
+        self.mag_settings_button = tk.Button(self.content_frame, text="Compass Settings", command=self.show_mag_settings_menu, font=('Arial', 10, 'bold'))
+        self.mag_settings_button.pack(pady=10)
+
+        # G Meter Button
+        self.g_menu_button = tk.Button(self.content_frame, text="G Meter", command=self.show_g_meter_menu, font=('Arial', 10, 'bold'))
+        self.g_menu_button.pack(pady=10)
+
+        # Seperating line
+        self.seperator = tk.Frame(self.content_frame, height=2, bg="black")
+        self.seperator.pack(fill=tk.X, pady=10)
+
         # Prev Page Butonu
-        self.save_button = tk.Button(self.content_frame, text="Prev Page", command=self.show_main_menu, font=('Arial', 10, 'bold'))
-        self.save_button.pack(pady=5)
+        self.prev_button = tk.Button(self.content_frame, text="Prev Page", command=self.show_main_menu, font=('Arial', 10, 'bold'))
+        self.prev_button.pack(pady=5)
 
     def show_altimeter_menu(self):
         self.clear_content_frame()
@@ -368,6 +398,79 @@ class App(tk.Tk):
         self.save_button = tk.Button(self.content_frame, text="Prev Page", command=self.show_efis_menu, font=('Arial', 10, 'bold'))
         self.save_button.pack(pady=5)
 
+    def show_mag_settings_menu(self):
+        self.clear_content_frame()
+
+        self.label = tk.Label(self.content_frame, text="EFIS - Mag Settings", bg="white", font=('Arial', 10, 'bold'))
+        self.label.pack(pady=10)
+
+        # MAG TRU Button
+        self.tru_button = tk.Button(self.content_frame, text="MAG / TRU", command=self.toggle_mag_tru, font=('Arial', 10, 'bold'))
+        self.tru_button.pack(pady=5)
+
+        # Magnetic Variation Entry
+        self.mag_var_label = tk.Label(self.content_frame, text="Magnetic Variation (° W+ E-)", bg="white")
+        self.mag_var_label.pack(pady=5)
+
+        self.mag_var_entry = tk.Entry(self.content_frame)
+        self.mag_var_entry.pack(pady=5)
+        self.mag_var_entry.insert(0, self.menu_pfd_magVar.get())
+
+        # Save Button
+        self.save_button = tk.Button(self.content_frame, text="Save", command=self.save_mag_var, font=('Arial', 10, 'bold'))
+        self.save_button.pack(pady=5)
+
+        # Corr Button
+        self.mag_corr_label = tk.Label(self.content_frame, text="Tilt Correction On / Off", bg="white")
+        self.mag_corr_label.pack(pady=5)
+
+        self.mag_corr_button = tk.Button(self.content_frame, text="Change", command=self.toggle_mag_corr, font=('Arial', 10, 'bold'))
+        self.mag_corr_button.pack(pady=5)
+
+        # Seperating line
+        self.seperator = tk.Frame(self.content_frame, height=2, bg="black")
+        self.seperator.pack(fill=tk.X, pady=10)
+
+        # Reload Butonu
+        self.save_button = tk.Button(self.content_frame, text="Reload", command=self.show_mag_settings_menu, font=('Arial', 10, 'bold'))
+        self.save_button.pack(pady=5)
+
+        # Prev Page Button
+        self.prev_button = tk.Button(self.content_frame, text="Prev Page", command=self.show_efis_menu, font=('Arial', 10, 'bold'))
+        self.prev_button.pack(pady=5)
+
+    def save_mag_var(self):
+        try:
+            mag_var_value = float(self.mag_var_entry.get())
+            if -90.0 <= mag_var_value <= 90.0:
+                self.shared_data.menu_pfd_magVar = mag_var_value
+                self.menu_pfd_magVar.set(mag_var_value)
+            else:
+                print("Invalid Magnetic Variation value!")
+        except ValueError:
+            print("Invalid Magnetic Variation value!")
+
+    def show_g_meter_menu(self):
+        self.clear_content_frame()
+
+        self.label = tk.Label(self.content_frame, text="EFIS - G Meter", bg="white", font=('Arial', 10, 'bold'))
+        self.label.pack(pady=10)
+
+        # G Peak Max and Min
+        self.g_peaks_label = tk.Label(self.content_frame, text=f"Max: {self.g_peak_max.get():.1f} G - Min: {self.g_peak_min.get():.1f} G", bg="white", font=('Arial', 10, 'bold'))
+        self.g_peaks_label.pack(pady=10)
+
+        self.g_reset_button = tk.Button(self.content_frame, text="Reset Peaks", command=self.reset_g, font=('Arial', 10, 'bold'))
+        self.g_reset_button.pack(pady=10)
+
+        # Seperating line
+        self.seperator = tk.Frame(self.content_frame, height=2, bg="black")
+        self.seperator.pack(fill=tk.X, pady=10)
+
+        # Prev Page Button
+        self.prev_button = tk.Button(self.content_frame, text="Prev Page", command=self.show_efis_menu, font=('Arial', 10, 'bold'))
+        self.prev_button.pack(pady=5)
+
     def update_altimeter_label(self):
         current_unit = self.menu_pfd_altStgUnit.get()
         if current_unit:
@@ -389,6 +492,18 @@ class App(tk.Tk):
         self.update_altimeter_entry()
         # Değişikliği paylaşılan veriye de yansıt
         self.shared_data.menu_pfd_altStgStd = not current_std
+
+    def toggle_mag_tru(self):
+        current_mag_tru = self.menu_pfd_magTru.get()
+        self.menu_pfd_magTru.set(not current_mag_tru)
+        # Değişikliği paylaşılan veriye de yansıt
+        self.shared_data.menu_pfd_magTru = not current_mag_tru
+
+    def toggle_mag_corr(self):
+        current_mag_corr = self.menu_pfd_magCorr.get()
+        self.menu_pfd_magCorr.set(not current_mag_corr)
+        # Değişikliği paylaşılan veriye de yansıt
+        self.shared_data.menu_pfd_magCorr = not current_mag_corr
 
     def update_altimeter_entry(self):
         current_unit = self.menu_pfd_altStgUnit.get()
@@ -427,25 +542,29 @@ class App(tk.Tk):
                     print("Invalid inHg value!")
 
     def save_ta_trl_settings(self):
-            try:
-                ta_value = int(self.ta_entry.get())
-                if 100 <= ta_value <= 99999:
-                    self.shared_data.menu_pfd_ta = ta_value
-                    self.menu_pfd_ta.set(ta_value)
-                else:
-                    print("Invalid TA value!")
-            except ValueError:
+        try:
+            ta_value = int(self.ta_entry.get())
+            if 100 <= ta_value <= 99999:
+                self.shared_data.menu_pfd_ta = ta_value
+                self.menu_pfd_ta.set(ta_value)
+            else:
                 print("Invalid TA value!")
+        except ValueError:
+            print("Invalid TA value!")
 
-            try:
-                trl_value = int(self.trl_entry.get())
-                if 1 <= trl_value <= 999:
-                    self.shared_data.menu_pfd_trl = trl_value
-                    self.menu_pfd_trl.set(trl_value)
-                else:
-                    print("Invalid TRL value!")
-            except ValueError:
+        try:
+            trl_value = int(self.trl_entry.get())
+            if 1 <= trl_value <= 999:
+                self.shared_data.menu_pfd_trl = trl_value
+                self.menu_pfd_trl.set(trl_value)
+            else:
                 print("Invalid TRL value!")
+        except ValueError:
+            print("Invalid TRL value!")
+
+    def reset_g(self):
+        self.shared_data.menu_pfd_resetG = True
+        self.menu_pfd_resetG.set(True)
 
     def clear_content_frame(self):
         for widget in self.content_frame.winfo_children():
@@ -523,6 +642,7 @@ pfdAltStgStbyFont = pygame.font.Font('fonts/OCR-B/OCR-B.ttf', 12)
 
 pfdCompass_font_small = pygame.font.Font('fonts/OCR-B/OCR-B.ttf', 12)
 pfdCompass_font_large = pygame.font.Font('fonts/OCR-B/OCR-B.ttf', 16)
+pfdCompass_status_text_font = pygame.font.Font('fonts/OCR-B/OCR-B.ttf', 10)
 
 pfdAoaFont = pygame.font.Font('fonts/OCR-B/OCR-B.ttf', 10)
 
@@ -613,7 +733,8 @@ pfdCompass_center_y = 968           # Pusula merkezinin y konumu
 pfdCompass_short_tick_length = 15   # Kısa çizgi uzunluğu
 pfdCompass_long_tick_length = 25    # Uzun çizgi uzunluğu
 pfdCompass_degree_line_thickness = 4  # Pusula derece çizgilerinin kalınlığı
-pfd_compass_pointer_pos = (374,690)
+pfdCompass_pointer_pos = (374,690)
+pfdCompass_status_text_pos = (446, 810)
     # Rate of Turn Indicator
 rot_arc_center_x = 390      # px
 rot_arc_center_y = 968      # px
@@ -660,6 +781,9 @@ g_tick_length = 8
 g_min = -90
 g_max = 135
 g_scale_factor = 67.5
+g_peak_tick_length = 8
+g_peak_max = -99.9
+g_peak_min = +99.9
     # Error Messages
 pfdDataTimeoutPos = (SCREEN_WIDTH/2, 20)  # Center referenced
 
@@ -1040,14 +1164,31 @@ while True:
             pygame.draw.line(screen, WHITE, (vspd_line_ctr_x_pos,vspd_line_ctr_y_pos), (vspd_line_tie_x_pos,vspd_line_tie_y_pos), vspd_line_width)
 
         # Compass
-        if magStatus:  
+        if magStatus:
+            if not imuStatus:
+                shared_data.menu_pfd_magCorr = False
+            if shared_data.menu_pfd_magCorr:
+                if shared_data.menu_pfd_magTru:
+                    compassValue = drv_magCorrHdg + shared_data.menu_pfd_magVar
+                    pfdCompass_status_text = pfdCompass_status_text_font.render("TRU", True, BOEING_GREEN)
+                else:
+                    compassValue = drv_magCorrHdg
+                    pfdCompass_status_text = pfdCompass_status_text_font.render("MAG", True, BOEING_GREEN)
+            else:
+                if shared_data.menu_pfd_magTru:
+                    compassValue = drv_magUncorrHdg + shared_data.menu_pfd_magVar
+                    pfdCompass_status_text = pfdCompass_status_text_font.render("TRU UNCORR", True, BOEING_AMBER)
+                else:
+                    compassValue = drv_magUncorrHdg
+                    pfdCompass_status_text = pfdCompass_status_text_font.render("MAG UNCORR", True, BOEING_AMBER)
+            
                 # Kerteriz çemberini çiz
             pygame.draw.circle(screen, BOEING_GRAY, (pfdCompass_center_x, pfdCompass_center_y), pfdCompass_radius, 0)
 
-            text_angle = drv_magHdg + 10    # Kerteriziz 0 noktası sabit olduğu için üst kısımdaki yazıların düz görünmesini sağlamak için. +10 ise aşağıda -10 yapılacağı için ilk yazının düz olması için.
+            text_angle = compassValue + 10    # Kerteriziz 0 noktası sabit olduğu için üst kısımdaki yazıların düz görünmesini sağlamak için. +10 ise aşağıda -10 yapılacağı için ilk yazının düz olması için.
             for degree in range(0, 360, 10):
                 rad = math.radians(degree)
-                adjusted_angle = rad + math.radians(-drv_magHdg-90)
+                adjusted_angle = rad + math.radians(-compassValue-90)
                 x1 = pfdCompass_center_x + (pfdCompass_radius - pfdCompass_short_tick_length) * math.cos(adjusted_angle)
                 y1 = pfdCompass_center_y + (pfdCompass_radius - pfdCompass_short_tick_length) * math.sin(adjusted_angle)
                 x2 = pfdCompass_center_x + pfdCompass_radius * math.cos(adjusted_angle)
@@ -1061,13 +1202,15 @@ while True:
                     text = str(degree // 10) if degree % 30 != 0 else str(degree // 10)
                     font = pfdCompass_font_large if degree % 30 == 0 else pfdCompass_font_small
                     text_angle = text_angle - 10
-                    text_x = pfdCompass_center_x + (pfdCompass_radius - pfdCompass_long_tick_length - 20) * math.cos(adjusted_angle)
-                    text_y = pfdCompass_center_y + (pfdCompass_radius - pfdCompass_long_tick_length - 20) * math.sin(adjusted_angle)
+                    text_x = pfdCompass_center_x + (pfdCompass_radius - pfdCompass_long_tick_length - 10) * math.cos(adjusted_angle)
+                    text_y = pfdCompass_center_y + (pfdCompass_radius - pfdCompass_long_tick_length - 10) * math.sin(adjusted_angle)
                     text_surface = font.render(text, True, WHITE)
                     text_rect = text_surface.get_rect(center=(text_x, text_y))
                     rotated_surface = pygame.transform.rotate(text_surface, text_angle)
                     rotated_rect = rotated_surface.get_rect(center=(text_x, text_y))
                     screen.blit(rotated_surface, rotated_rect.topleft)
+            
+            screen.blit(pfdCompass_status_text, pfdCompass_status_text_pos)
 
         # Speed Trend Arrow
         if imuStatus:
@@ -1106,7 +1249,7 @@ while True:
             
         # Compass Pointer
         if magStatus:
-            screen.blit(pfd_compass_pointer, pfd_compass_pointer_pos)  
+            screen.blit(pfd_compass_pointer, pfdCompass_pointer_pos)  
 
         # Vertical Speed Indicator
         if pressStatus:
@@ -1206,27 +1349,48 @@ while True:
         
         # Vertical G Indicator
         if imuStatus:
+            if imu_ay > shared_data.g_peak_max:
+                shared_data.g_peak_max = imu_ay
+            if imu_ay < shared_data.g_peak_min:
+                shared_data.g_peak_min = imu_ay
+
+            if shared_data.menu_pfd_resetG:
+                shared_data.g_peak_max = imu_ay
+                shared_data.g_peak_min = imu_ay
+                shared_data.menu_pfd_resetG = False
+
+            g_peak_max_indicator_value = -(shared_data.g_peak_max-1) * g_scale_factor + 180
+            if g_peak_max_indicator_value < g_arc_start_angle:
+                g_peak_max_indicator_value = g_arc_start_angle
+            if g_peak_max_indicator_value > g_arc_end_angle:
+                g_peak_max_indicator_value = g_arc_end_angle
+
+            g_peak_min_indicator_value = -(shared_data.g_peak_min-1) * g_scale_factor + 180
+            if g_peak_min_indicator_value < g_arc_start_angle:
+                g_peak_min_indicator_value = g_arc_start_angle
+            if g_peak_min_indicator_value > g_arc_end_angle:
+                g_peak_min_indicator_value = g_arc_end_angle
+
             g_indicator_value = -(imu_ay-1) * g_scale_factor + 180
             if g_indicator_value < g_arc_start_angle:
                 g_indicator_value = g_arc_start_angle
             if g_indicator_value > g_arc_end_angle:
-                g_indicator_value = g_arc_end_angle
+                g_indicator_value = g_arc_end_angle     
 
             pfdG0Text = pfdGFont.render("0", True, WHITE)
             screen.blit(pfdG0Text, (g_indicator_pos_x-10, g_indicator_pos_y+8))
             pfdG2Text = pfdGFont.render("2", True, WHITE)
-            screen.blit(pfdG2Text, (g_indicator_pos_x-10, g_indicator_pos_y-30))
-            draw_arc(screen, WHITE, (g_indicator_pos_x, g_indicator_pos_y), g_arc_radius, g_arc_start_angle, g_arc_end_angle, g_thickness-2)          
+            screen.blit(pfdG2Text, (g_indicator_pos_x-10, g_indicator_pos_y-30))                  
             draw_ticks_in(screen, WHITE, (g_indicator_pos_x, g_indicator_pos_y), g_arc_radius, g_arc_start_angle, g_arc_end_angle, g_tick_count, g_tick_length, g_thickness)
+            draw_ticks_out(screen, BOEING_GREEN, (g_indicator_pos_x, g_indicator_pos_y), g_arc_radius, g_peak_max_indicator_value, g_peak_min_indicator_value, 2, g_peak_tick_length, g_thickness)
+            draw_arc(screen, WHITE, (g_indicator_pos_x, g_indicator_pos_y), g_arc_radius, g_arc_start_angle, g_arc_end_angle, g_thickness-2)
             draw_hand(screen, WHITE, (g_indicator_pos_x, g_indicator_pos_y), g_arc_radius, g_indicator_value, g_needle_thickness)
             pfdGText = pfdGFont.render(format(round(imu_ay, 1), '.1f'), True, WHITE)
             screen.blit(pfdGText, pfdGTextPos)
-            
-
                     
-        # Heading [TEST]
-        pfdHdg = pfdHdgFont.render(format(round(drv_magHdg)), True, WHITE)
-        screen.blit(pfdHdg, (388, 50))
+        # # Heading [TEST]
+        # pfdHdg = pfdHdgFont.render(format(round(drv_magUncorrHdg)), True, WHITE)
+        # screen.blit(pfdHdg, (388, 50))
 
         # Flags:
         if not imuStatus:
@@ -1338,8 +1502,10 @@ while True:
                             drv_roll = convert_float(value)
                         elif key == 'trn':
                             drv_turnRate = convert_float(value)
-                        elif key == 'mhd':
-                            drv_magHdg = convert_float(value)
+                        elif key == 'umh':
+                            drv_magUncorrHdg = convert_float(value)
+                        elif key == 'cmh':
+                            drv_magCorrHdg = convert_float(value)
                         elif key == 'sat':
                             drv_SATC = convert_float(value)
                         elif key == 'plt':
@@ -1386,7 +1552,8 @@ while True:
                 print("drv_pitch:", drv_pitch)
                 print("drv_roll:", drv_roll)
                 print("drv_turnRate:", drv_turnRate)
-                print("drv_magHdg:", drv_magHdg)
+                print("drv_magUncorrHdg:", drv_magUncorrHdg)
+                print("drv_magCorrHdg:", drv_magCorrHdg)
                 print("drv_SATC:", drv_SATC)
                 print("drv_pressAltFt:", drv_pressAltFt)
                 print("drv_baroVspdFpm:", drv_baroVspdFpm)
