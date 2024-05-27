@@ -7,6 +7,7 @@
 
 /* == Includes == */
 #include <avr/io.h>
+#include <avr/wdt.h>
 #include <stdio.h>
 #include "arduino.h"
 #include "Wire.h"
@@ -14,6 +15,9 @@
 #include "virtuabotixRTC.h"
 #include "Adafruit_BMP085.h"
 #include "ms4525do.h"
+
+/* Watchdog Timer */
+#define WATCHDOG_TIME WDTO_2S
 
 /* == Axis Bits for Inverting == */
 #define X_BIT 0b100
@@ -42,11 +46,13 @@ static const uint8_t RtcSclkPin = 8;	// DS1302 Clock
 uint16_t RtcSetSec=0, RtcSetMin=0, RtcSedHr=0, RtcSetDay=1, RtcSetMonth=1, RtcSetYear=2000;
 
 /* == GNSS == */
+/*
 static const uint16_t GNSS_BUFFER_SIZE = 400;
 char gnssBuffer[GNSS_BUFFER_SIZE];
 uint8_t gnssBufferIndex = 0;
 boolean gnssNewMessage = false;
 char GNSS_GGA[64], GNSS_GSA[64], GNSS_RMC[64], GNSS_VTG[64];
+*/
 
 /* == General Variables == */
 size_t i;
@@ -69,7 +75,7 @@ static const float constM0 = 0.02896442;		// kg/mol, derived from ICAO Doc 7488/
 static const float constLb = -0.0065;			// K/m, std lapse rate, derived from ICAO Doc 7488/3, (0-11000m)
 static const float constYAir = 1.401;			// specific heat capacity ratio for air
 static const float constmtoft = 3.2808399;
-static const float const180OverPi = 57.2957795131; // PI/180=57.2957795131
+static const double const180OverPi = 57.2957795131; // PI/180=57.2957795131
 
 /* == Settings == */
 static const uint8_t SETTINGS_BUFFER_SIZE = 64;
@@ -103,6 +109,7 @@ static const float tempFactor = 0.48828125; // 5000/1024/10
 uint16_t tempRefPin;
 uint16_t tempOutPin;
 float temp_TATC;
+static const float tempProbeRecoveryFactor = 1.0; // Should be adjusted for TAT probe
 
 // IMU
 static const uint8_t IMUChannel = I2C_CHANNEL_1;
@@ -129,12 +136,12 @@ static const uint8_t imuPowerValue = 0b00001000; // 7 Device Reset, 6 Sleep, 5 C
 
 float imu_ax, imu_ay, imu_az, imu_gx, imu_gy, imu_gz;
 
-static const float imuAccelxErr = 0.0;
-static const float imuAccelyErr = 0.0;
+static const float imuAccelxErr = -0.04;
+static const float imuAccelyErr = -0.045;
 static const float imuAccelzErr = 0.0;
-static const float imuGyroxErr = 0.0;
-static const float imuGyroyErr = 0.0;
-static const float imuGyrozErr = 0.0;
+static const float imuGyroxErr = 5.0;
+static const float imuGyroyErr = -2.0;
+static const float imuGyrozErr = 0.6;
 
 // Mag
 static const uint8_t MagChannel = I2C_CHANNEL_2;
@@ -155,8 +162,7 @@ uint8_t magDataReady = 0;
 static const uint8_t magDataReadyReg = 0x06;
 static const uint8_t magDataStart = 0x00;	// QMC5883
 static const uint8_t magRetryInterval = 2;	// ms
-float mag_x, mag_y, mag_z;
-int magx, magy, magz;
+int mag_x, mag_y, mag_z;
 
 static const float magxErr = 0.0;
 static const float magyErr = 0.0;
@@ -179,15 +185,17 @@ bfs::Ms4525do pres;
 //float diffDieTempC;
 float diff_pressPa;
 
-static const float diffPressPaErr = -10.0;
+static const float diffPressPaErr = -20.0;
 
 /* == Derived Values == */
 // Pitch
-float drv_pitch;
+double drv_pitch;
 // Roll
-float drv_roll;
+double drv_roll;
 // Turn Rate
 float drv_turnRate;
+// Linear Acceleration
+float drv_linearAcc;
 // Tilt Uncorrected Magnetic Heading
 float drv_magUncorrHdg;
 // Tilt Corrected Magnetic Heading

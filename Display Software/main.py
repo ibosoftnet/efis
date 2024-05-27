@@ -14,13 +14,17 @@ import tkinter as tk            # Internal
 import threading                # Internal
 
 # --------------------
+# Icons
+
+
+# --------------------
 # Serial Port
 
 ser = None
-serialExceptionDelayTime = 2        # s
-dataTimeoutThr = 0.1          # s
-dataLowRateThr = 100          # ms
-dataTimeout = True                  # For determining if data is timeout
+serialExceptionDelayTime = 2    # s
+dataTimeoutThr = 0.1            # s
+dataLowRateThr = 100            # ms
+dataTimeout = True              # For determining if data is timeout
 
 def start_serial_port():
     try:
@@ -195,6 +199,7 @@ diff_pressPa = 0.0      # (Pa)
 drv_pitch = 0.0         # Pitch (deg)
 drv_roll = 0.0          # Roll (deg)
 drv_turnRate = 0.0      # Turn Rate (deg/s)
+drv_linearAcc = 0.0     # Linear Acceleration (g)
 drv_magUncorrHdg = 0.0  # (deg)
 drv_magCorrHdg = 0.0    # (deg)
 drv_SATC = 0.0          # SAT (C)
@@ -205,6 +210,7 @@ drv_kias = 0.0          # KIAS (kts)
 drv_ktas = 0.0          # KTAS (kts)
 drv_mach = 0.0          # Mach (Mach)
 drv_kcas = 0.0          # KCAS (kts)
+# Internal Variables
 
 # --------------------
 class SharedData:
@@ -221,16 +227,16 @@ class SharedData:
         self.menu_pfd_magVar = 0.0
         self.menu_pfd_resetG = False  # Reset G Peaks
 
-        # PFD
-        self.g_peak_min = 99.9
-        self.g_peak_max = -99.9
-
+        self.pfdGPeakMin = 99.9
+        self.pfdGPeakMax = -99.9
 
         self.lock = threading.Lock()  # You can use threading.Lock() here if needed
 # --------------------
 
 # Menu
 class App(tk.Tk):
+    
+
     def __init__(self, shared_data):
         super().__init__()
 
@@ -247,11 +253,9 @@ class App(tk.Tk):
         self.menu_pfd_magVar = tk.DoubleVar(value=shared_data.menu_pfd_magVar)
         self.menu_pfd_resetG = tk.BooleanVar(value=shared_data.menu_pfd_resetG)
 
-        self.g_peak_max = tk.DoubleVar(value=shared_data.g_peak_max)
-        self.g_peak_min = tk.DoubleVar(value=shared_data.g_peak_min)
-
         self.title("Control Display Unit")
         self.geometry("400x500")
+        self.iconbitmap("images/cdu.ico")
 
         self.create_widgets()
 
@@ -451,13 +455,18 @@ class App(tk.Tk):
             print("Invalid Magnetic Variation value!")
 
     def show_g_meter_menu(self):
+        def update_values():
+            # G Peak Max and Min
+            self.g_peaks_label.config(text=f"Max: {self.shared_data.pfdGPeakMax:.1f} G - Min: {self.shared_data.pfdGPeakMin:.1f} G")
+            self.after(100, update_values)  # ms
+
         self.clear_content_frame()
 
         self.label = tk.Label(self.content_frame, text="EFIS - G Meter", bg="white", font=('Arial', 10, 'bold'))
         self.label.pack(pady=10)
 
         # G Peak Max and Min
-        self.g_peaks_label = tk.Label(self.content_frame, text=f"Max: {self.g_peak_max.get():.1f} G - Min: {self.g_peak_min.get():.1f} G", bg="white", font=('Arial', 10, 'bold'))
+        self.g_peaks_label = tk.Label(self.content_frame, text=f"Max: {self.shared_data.pfdGPeakMax:.1f} G - Min: {self.shared_data.pfdGPeakMin:.1f} G", bg="white", font=('Arial', 10, 'bold'))
         self.g_peaks_label.pack(pady=10)
 
         self.g_reset_button = tk.Button(self.content_frame, text="Reset Peaks", command=self.reset_g, font=('Arial', 10, 'bold'))
@@ -470,6 +479,13 @@ class App(tk.Tk):
         # Prev Page Button
         self.prev_button = tk.Button(self.content_frame, text="Prev Page", command=self.show_efis_menu, font=('Arial', 10, 'bold'))
         self.prev_button.pack(pady=5)
+
+        # Değerlerin canlı olarak güncellenmesi için döngü
+        update_values()
+
+    def reset_g(self):
+        self.shared_data.menu_pfd_resetG = True
+        self.menu_pfd_resetG.set(True)
 
     def update_altimeter_label(self):
         current_unit = self.menu_pfd_altStgUnit.get()
@@ -562,9 +578,7 @@ class App(tk.Tk):
         except ValueError:
             print("Invalid TRL value!")
 
-    def reset_g(self):
-        self.shared_data.menu_pfd_resetG = True
-        self.menu_pfd_resetG.set(True)
+    
 
     def clear_content_frame(self):
         for widget in self.content_frame.winfo_children():
@@ -583,6 +597,8 @@ gui_thread.start()
 # Display
 SCREEN_WIDTH = 858
 SCREEN_HEIGHT = 857
+
+pygame.display.set_icon(pygame.image.load("images/pfd.ico"))
 
 pygame.init()
 screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
@@ -753,7 +769,7 @@ accel_arrowLimYUp = 318     # px
 accel_arrowLimYDown = 319   # px
 accel_arrowDeathZone = 10   # px
 accel_arrowThickness = 4    # px
-accel_factor = 100
+accel_factor = 2000
     # Angle of Attack Indicator
 pfdAoaTextPos = (513,152)
 aoa_indicator_pos = (555, 147)
@@ -782,8 +798,8 @@ g_min = -90
 g_max = 135
 g_scale_factor = 67.5
 g_peak_tick_length = 8
-g_peak_max = -99.9
-g_peak_min = +99.9
+pfd_g_peak_max = -99.9
+pfd_g_peak_min = +99.9
     # Error Messages
 pfdDataTimeoutPos = (SCREEN_WIDTH/2, 20)  # Center referenced
 
@@ -1163,6 +1179,18 @@ while True:
         
             pygame.draw.line(screen, WHITE, (vspd_line_ctr_x_pos,vspd_line_ctr_y_pos), (vspd_line_tie_x_pos,vspd_line_tie_y_pos), vspd_line_width)
 
+        # Speed Trend Arrow
+        if imuStatus:
+            accel_ArrowTipY = accel_arrowCtrY + round((-drv_linearAcc)*accel_factor)
+            
+            if (abs(accel_ArrowTipY) >= accel_arrowCtrY+accel_arrowDeathZone) or (abs(accel_ArrowTipY) <= accel_arrowCtrY-accel_arrowDeathZone):
+                if accel_ArrowTipY <= accel_arrowCtrY-accel_arrowLimYUp:
+                    accel_ArrowTipY = accel_arrowCtrY-accel_arrowLimYUp
+                if accel_ArrowTipY >= accel_arrowCtrY+accel_arrowLimYDown:
+                    accel_ArrowTipY = accel_arrowCtrY+accel_arrowLimYDown
+
+                draw_arrow(screen, BOEING_GREEN, (accel_arrowX, accel_arrowCtrY), (accel_arrowX, accel_ArrowTipY), accel_arrowThickness)
+
         # Compass
         if magStatus:
             if not imuStatus:
@@ -1211,18 +1239,6 @@ while True:
                     screen.blit(rotated_surface, rotated_rect.topleft)
             
             screen.blit(pfdCompass_status_text, pfdCompass_status_text_pos)
-
-        # Speed Trend Arrow
-        if imuStatus:
-            accel_ArrowTipY = accel_arrowCtrY + round((-imu_az)*accel_factor)
-            
-            if (abs(accel_ArrowTipY) >= accel_arrowCtrY+accel_arrowDeathZone) or (abs(accel_ArrowTipY) <= accel_arrowCtrY-accel_arrowDeathZone):
-                if accel_ArrowTipY <= accel_arrowCtrY-accel_arrowLimYUp:
-                    accel_ArrowTipY = accel_arrowCtrY-accel_arrowLimYUp
-                if accel_ArrowTipY >= accel_arrowCtrY+accel_arrowLimYDown:
-                    accel_ArrowTipY = accel_arrowCtrY+accel_arrowLimYDown
-
-                draw_arrow(screen, BOEING_GREEN, (accel_arrowX, accel_arrowCtrY), (accel_arrowX, accel_ArrowTipY), accel_arrowThickness)
 
         # == PFD BACKGROUND ==
         screen.blit(pfdBackground, (0, 0))
@@ -1345,31 +1361,31 @@ while True:
             draw_hand(screen, WHITE, aoa_indicator_pos, aoa_arc_radius, aoa_indicator_value, aoa_needle_thickness)
             pfdAoaText = pfdAoaFont.render(format(round(aoa_indicator_value/aoa_scale_factor, 1), '.1f'), True, WHITE)
             screen.blit(pfdAoaText, pfdAoaTextPos)
-
-        
+ 
         # Vertical G Indicator
         if imuStatus:
-            if imu_ay > shared_data.g_peak_max:
-                shared_data.g_peak_max = imu_ay
-            if imu_ay < shared_data.g_peak_min:
-                shared_data.g_peak_min = imu_ay
+            if imu_ay > shared_data.pfdGPeakMax:
+                shared_data.pfdGPeakMax = imu_ay
+
+            if imu_ay < shared_data.pfdGPeakMin:
+                shared_data.pfdGPeakMin = imu_ay
 
             if shared_data.menu_pfd_resetG:
-                shared_data.g_peak_max = imu_ay
-                shared_data.g_peak_min = imu_ay
+                shared_data.pfdGPeakMax = imu_ay
+                shared_data.pfdGPeakMin = imu_ay
                 shared_data.menu_pfd_resetG = False
 
-            g_peak_max_indicator_value = -(shared_data.g_peak_max-1) * g_scale_factor + 180
-            if g_peak_max_indicator_value < g_arc_start_angle:
-                g_peak_max_indicator_value = g_arc_start_angle
-            if g_peak_max_indicator_value > g_arc_end_angle:
-                g_peak_max_indicator_value = g_arc_end_angle
+            pfd_g_peak_max_indicator_value = -(shared_data.pfdGPeakMax-1) * g_scale_factor + 180
+            if pfd_g_peak_max_indicator_value < g_arc_start_angle:
+                pfd_g_peak_max_indicator_value = g_arc_start_angle
+            if pfd_g_peak_max_indicator_value > g_arc_end_angle:
+                pfd_g_peak_max_indicator_value = g_arc_end_angle
 
-            g_peak_min_indicator_value = -(shared_data.g_peak_min-1) * g_scale_factor + 180
-            if g_peak_min_indicator_value < g_arc_start_angle:
-                g_peak_min_indicator_value = g_arc_start_angle
-            if g_peak_min_indicator_value > g_arc_end_angle:
-                g_peak_min_indicator_value = g_arc_end_angle
+            pfd_g_peak_min_indicator_value = -(shared_data.pfdGPeakMin-1) * g_scale_factor + 180
+            if pfd_g_peak_min_indicator_value < g_arc_start_angle:
+                pfd_g_peak_min_indicator_value = g_arc_start_angle
+            if pfd_g_peak_min_indicator_value > g_arc_end_angle:
+                pfd_g_peak_min_indicator_value = g_arc_end_angle
 
             g_indicator_value = -(imu_ay-1) * g_scale_factor + 180
             if g_indicator_value < g_arc_start_angle:
@@ -1382,7 +1398,7 @@ while True:
             pfdG2Text = pfdGFont.render("2", True, WHITE)
             screen.blit(pfdG2Text, (g_indicator_pos_x-10, g_indicator_pos_y-30))                  
             draw_ticks_in(screen, WHITE, (g_indicator_pos_x, g_indicator_pos_y), g_arc_radius, g_arc_start_angle, g_arc_end_angle, g_tick_count, g_tick_length, g_thickness)
-            draw_ticks_out(screen, BOEING_GREEN, (g_indicator_pos_x, g_indicator_pos_y), g_arc_radius, g_peak_max_indicator_value, g_peak_min_indicator_value, 2, g_peak_tick_length, g_thickness)
+            draw_ticks_out(screen, BOEING_GREEN, (g_indicator_pos_x, g_indicator_pos_y), g_arc_radius, pfd_g_peak_max_indicator_value, pfd_g_peak_min_indicator_value, 2, g_peak_tick_length, g_thickness)
             draw_arc(screen, WHITE, (g_indicator_pos_x, g_indicator_pos_y), g_arc_radius, g_arc_start_angle, g_arc_end_angle, g_thickness-2)
             draw_hand(screen, WHITE, (g_indicator_pos_x, g_indicator_pos_y), g_arc_radius, g_indicator_value, g_needle_thickness)
             pfdGText = pfdGFont.render(format(round(imu_ay, 1), '.1f'), True, WHITE)
@@ -1428,9 +1444,7 @@ while True:
 
             if ser and ser.is_open:
                 # Seri port üzerinden veri gönderme veya alma işlemleri
-                # Örnek: ser.write(b'data') veya data = ser.readline()
-                
-   
+
                 # Process incoming data
                 while True:      
                     start_time = time.time()  # Döngü başlangıç zamanını al
@@ -1502,12 +1516,12 @@ while True:
                             drv_roll = convert_float(value)
                         elif key == 'trn':
                             drv_turnRate = convert_float(value)
+                        elif key == 'lac':
+                            drv_linearAcc = convert_float(value)
                         elif key == 'umh':
                             drv_magUncorrHdg = convert_float(value)
                         elif key == 'cmh':
                             drv_magCorrHdg = convert_float(value)
-                        elif key == 'sat':
-                            drv_SATC = convert_float(value)
                         elif key == 'plt':
                             drv_pressAltFt = convert_float(value)
                         elif key == 'ilt':
@@ -1522,46 +1536,50 @@ while True:
                             drv_ktas = convert_float(value)
                         elif key == 'mac':
                             drv_mach = convert_float(value)
+                        elif key == 'sat':
+                            drv_SATC = convert_float(value)
 
                     # İşlemi bitir
                     elif incoming_data == '+':
                         break
 
                 # Print Incoming Data
-                print("Incoming Data:")
-                print("messageInterval:", messageInterval)
-                print("set_altStd:", set_altStd)
-                print("set_altStg:", set_altStg)
-                print("ag_onGnd1:", ag_onGnd1)
-                print("ag_onGnd2:", ag_onGnd2)
-                print("ag_onGnd3:", ag_onGnd3)
-                print("aoa_angle:", aoa_angle)
-                print("temp_TATC:", temp_TATC)
-                print("imuStatus:", imuStatus)
-                print("imu_ax:", imu_ax)
-                print("imu_ay:", imu_ay)
-                print("imu_az:", imu_az)
-                print("imu_gx:", imu_gx)
-                print("imu_gy:", imu_gy)
-                print("imu_gz:", imu_gz)
-                print("magStatus:", magStatus)
-                print("pressStatus:", pressStatus)
-                print("press_pressPa:", press_pressPa)
-                print("diffStatus:", diffStatus)
-                print("diff_pressPa:", diff_pressPa)
-                print("drv_pitch:", drv_pitch)
-                print("drv_roll:", drv_roll)
-                print("drv_turnRate:", drv_turnRate)
-                print("drv_magUncorrHdg:", drv_magUncorrHdg)
-                print("drv_magCorrHdg:", drv_magCorrHdg)
-                print("drv_SATC:", drv_SATC)
-                print("drv_pressAltFt:", drv_pressAltFt)
-                print("drv_baroVspdFpm:", drv_baroVspdFpm)
-                print("drv_indAltFt:", drv_indAltFt)
-                print("drv_kias:", drv_kias)
-                print("drv_ktas:", drv_ktas)
-                print("drv_mach:", drv_mach)
-                print("drv_kcas:", drv_kcas)
+                if(False):  # Currently Disabled
+                    print("Incoming Data:")
+                    print("messageInterval:", messageInterval)
+                    print("set_altStd:", set_altStd)
+                    print("set_altStg:", set_altStg)
+                    print("ag_onGnd1:", ag_onGnd1)
+                    print("ag_onGnd2:", ag_onGnd2)
+                    print("ag_onGnd3:", ag_onGnd3)
+                    print("aoa_angle:", aoa_angle)
+                    print("temp_TATC:", temp_TATC)
+                    print("imuStatus:", imuStatus)
+                    print("imu_ax:", imu_ax)
+                    print("imu_ay:", imu_ay)
+                    print("imu_az:", imu_az)
+                    print("imu_gx:", imu_gx)
+                    print("imu_gy:", imu_gy)
+                    print("imu_gz:", imu_gz)
+                    print("magStatus:", magStatus)
+                    print("pressStatus:", pressStatus)
+                    print("press_pressPa:", press_pressPa)
+                    print("diffStatus:", diffStatus)
+                    print("diff_pressPa:", diff_pressPa)
+                    print("drv_pitch:", drv_pitch)
+                    print("drv_roll:", drv_roll)
+                    print("drv_turnRate:", drv_turnRate)
+                    print("drv_linearAcc:", drv_linearAcc)
+                    print("drv_magUncorrHdg:", drv_magUncorrHdg)
+                    print("drv_magCorrHdg:", drv_magCorrHdg)
+                    print("drv_pressAltFt:", drv_pressAltFt)
+                    print("drv_baroVspdFpm:", drv_baroVspdFpm)
+                    print("drv_indAltFt:", drv_indAltFt)
+                    print("drv_kias:", drv_kias)
+                    print("drv_ktas:", drv_ktas)
+                    print("drv_mach:", drv_mach)
+                    print("drv_kcas:", drv_kcas)
+                    print("drv_SATC:", drv_SATC)
 
                 # --------------------
                 # Send data to Serial Port
@@ -1587,3 +1605,6 @@ while True:
                 ser.close()
                 ser = None
             time.sleep(serialExceptionDelayTime)
+
+
+        # --------------------

@@ -10,6 +10,7 @@
 
 /* == Includes == */
 #include <avr/io.h>
+#include <avr/wdt.h>
 #include <stdio.h>
 #include "arduino.h"
 #include "Wire.h"
@@ -41,6 +42,7 @@ virtuabotixRTC RTC(RtcSclkPin, RtcIoPin, RtcCePin); // RTC
 // ############################################################################################# //
 
 void setup() {
+	wdt_enable(WATCHDOG_TIME);
 	/* Pin Initializations */
 	// Flow Control
 	// Flow control pins not used so they pulled to high for preventing their LEDs to be bright.
@@ -91,17 +93,19 @@ void setup() {
 	// Delay after initialization
 	Serial.println("Initialization Ok!");
 	
+	wdt_reset();
+	
 	// Blink at startup
 	for(i=0; i<6; i++) {
 		// turn LED on
 		PORTD ^= 1 << PIND7;
-		delay(150);
-	}
-	
-	delay(1000);
+		delay(50);
+	}	
+	delay(100);
 }
 
 void loop() {
+	wdt_enable(WATCHDOG_TIME);
 	timePrev = millis();
 	/* Readings */
 	
@@ -172,14 +176,16 @@ void loop() {
 	drv_roll = atan2(imu_ax, imu_ay) * const180OverPi;
 	// Turn Rate
 	drv_turnRate = -imu_gy / cos(drv_roll/const180OverPi);
+	// Linear Acceleration
+	//drv_linearAcc = imu_az - sin(drv_pitch/const180OverPi)
+	drv_linearAcc = imu_az - sin( atan( tan(drv_pitch/const180OverPi)*cos(drv_roll/const180OverPi) ) );
+	if (isnan(drv_linearAcc)) {drv_linearAcc=0.0;}
 	// Tilt Uncorrected Magnetic Heading
-	drv_magUncorrHdg = atan2(magx, magz) * const180OverPi;
+	drv_magUncorrHdg = atan2(mag_x, mag_z) * const180OverPi;
 	if (drv_magUncorrHdg < 0) {drv_magUncorrHdg += 360;}
 	// Tilt Corrected Magnetic Heading
-	drv_magCorrHdg = atan2((magx) * cos(drv_roll / const180OverPi) + (magz) * sin(drv_roll / const180OverPi), (magy) * cos(drv_pitch / const180OverPi) + (magx) * sin(drv_roll / const180OverPi) * sin(drv_pitch / const180OverPi) - (magz) * cos(drv_roll / const180OverPi) * sin(drv_pitch / const180OverPi)) * const180OverPi;
+	drv_magCorrHdg = atan2(mag_z * sin(drv_roll / const180OverPi) - mag_y * cos(drv_roll / const180OverPi), mag_x * cos(drv_pitch / const180OverPi) + mag_y * sin(drv_pitch / const180OverPi) * sin(drv_roll / const180OverPi) + mag_z * sin(drv_pitch / const180OverPi) * cos(drv_roll / const180OverPi)) * const180OverPi;
 	if (drv_magCorrHdg < 0) {drv_magCorrHdg += 360;}
-	// SAT
-	drv_SATC = temp_TATC; // su anlik donusum faktoru yok.
 	// Pressure ALT ft
 	drvPrevPressAlt = drv_pressAltFt;
 	drv_pressAltFt = (constT0/constLb)*( pow(press_pressPa/constStdP, (-constRun*constLb)/(constg0*constM0)) - 1.0 ) * constmtoft;
@@ -210,6 +216,8 @@ void loop() {
 	// Mach
 	drv_mach = sqrt( (2/(constYAir-1)) * ( pow( (diff_pressPa/press_pressPa)+1.0, (constYAir-1.0)/constYAir ) - 1.0) );
 	if (isnan(drv_mach)) {drv_mach=0;} // If result of sqrt is nan, set 0 to result
+	// SAT
+	drv_SATC = (temp_TATC + constKMinusC)/( ( (constYAir-1.0)/2.0 ) * tempProbeRecoveryFactor * drv_mach * drv_mach + 1.0 ) - constKMinusC;
 		
 	// RTC
 	if (set_RtcMessageStatus == 1) {
@@ -224,22 +232,24 @@ void loop() {
 	dataOut();
 	
 	/* Loop timing */ 
-	readGnss();
+	//readGnss();
 	readSettings();
 	timeNext = millis();
 	loopPrevElapsedTime = timeNext - timePrev;
 	if (loopPrevElapsedTime >= loopInterval) {
 		while ((timeNext - timePrev - loopPrevElapsedTime) <= loopOverflow) {
-			readGnss();
+			//readGnss();
 			readSettings();
 			timeNext = millis();
 		}
 	}
 	while ((timeNext - timePrev) <= loopInterval) {
-		readGnss();
+		//readGnss();
 		readSettings();
 		timeNext = millis();
 	}
+	
+	wdt_reset();
 }
 
 
@@ -365,22 +375,22 @@ void magRead() {
 		Wire.requestFrom(magAdress, 6);
 		if (6 <= Wire.available()) {
 			// Data sequence is L-H-L-H-L-H so (Wire.read() | (Wire.read() << 8))
-			magx = (Wire.read() | (Wire.read() << 8)) + magxErr;
+			mag_x = (Wire.read() | (Wire.read() << 8)) + magxErr;
 			switch (magSwitchYZ) {
 				case 1:
-					magz = (Wire.read() | (Wire.read() << 8)) + magyErr;
-					magy = (Wire.read() | (Wire.read() << 8)) + magzErr;
+					mag_z = (Wire.read() | (Wire.read() << 8)) + magyErr;
+					mag_y = (Wire.read() | (Wire.read() << 8)) + magzErr;
 					break;
 				default:
-					magy = (Wire.read() | (Wire.read() << 8)) + magyErr;
-					magz = (Wire.read() | (Wire.read() << 8)) + magzErr;
+					mag_y = (Wire.read() | (Wire.read() << 8)) + magyErr;
+					mag_z = (Wire.read() | (Wire.read() << 8)) + magzErr;
 					break;
 			}
 		}
 		
-		if (magInvertAxises & X_BIT) {magx = -(magx);}
-		if (magInvertAxises & Y_BIT) {magy = -(magy);}
-		if (magInvertAxises & Z_BIT) {magz = -(magz);}
+		if (magInvertAxises & X_BIT) {mag_x = -(mag_x);}
+		if (magInvertAxises & Y_BIT) {mag_y = -(mag_y);}
+		if (magInvertAxises & Z_BIT) {mag_z = -(mag_z);}
 	} else {
 		delay(magRetryInterval);
 		Wire.requestFrom(magAdress, 1);
@@ -442,6 +452,7 @@ void processSettingsMessage() {
 
 // ############################################################################################# //
 
+/*
 void readGnss() {
 	if (mySerial.available()) {
 		gnssNewMessage = true;
@@ -499,12 +510,12 @@ void processGnssMessage() {
 }
 
 void parseGnssMessage() {
-	/*sscanf(GNSS_GGA,);
-	sscanf(GNSS_GSA,);
-	sscanf(GNSS_RMC,);
-	sscanf(GNSS_VTG,);*/
+	//sscanf(GNSS_GGA,);
+	//sscanf(GNSS_GSA,);
+	//sscanf(GNSS_RMC,);
+	//sscanf(GNSS_VTG,);
 }
-
+*/
 
 // ############################################################################################# //
 
@@ -574,12 +585,12 @@ void dataOut() {
 	Serial.print("&rol="); Serial.println(drv_roll);
 	// Turn Rate (dps)
 	Serial.print("&trn="); Serial.println(drv_turnRate);
+	// linear Acceleration (g)
+	Serial.print("&lac="); Serial.println(drv_linearAcc, 3);
 	// Tilt Uncorrected Magnetic Heading (deg)
 	Serial.print("&umh="); Serial.println(drv_magUncorrHdg);
 	// Tilt Corrected Magnetic Heading (deg)
 	Serial.print("&cmh="); Serial.println(drv_magCorrHdg);
-	// SAT (celsius)
-	Serial.print("&sat="); Serial.println(drv_SATC);
 	// Preessure Alt (ft)
 	Serial.print("&plt="); Serial.println(drv_pressAltFt);
 	// Indicated Alt (ft)
@@ -594,13 +605,17 @@ void dataOut() {
 	Serial.print("&tas="); Serial.println(drv_ktas);
 	// Mach
 	Serial.print("&mac="); Serial.println(drv_mach, 4);
+	// SAT (celsius)
+	Serial.print("&sat="); Serial.println(drv_SATC);
 	
+	/*
 	// GNSS
 	Serial.print("%gnm="); Serial.println(gnssNewMessage);
 	Serial.print("?gsa="); Serial.println(GNSS_GSA);
 	Serial.print("?gga="); Serial.println(GNSS_GGA);
 	Serial.print("?rmc="); Serial.println(GNSS_RMC);
 	Serial.print("?vtg="); Serial.println(GNSS_VTG);
+	*/
 	
 	
 	// End of message
