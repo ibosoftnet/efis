@@ -1439,25 +1439,38 @@ while True:
         try:
             # Seri port açık değilse veya port None ise yeniden başlatmayı dene
             if ser is None or not ser.is_open:
-                logging.warning("Seri port kapalı. Yeniden açmaya çalışılıyor...")
+                print("Serial port is closed. Trying to open...")
+                logging.warning("Serial port is closed. Trying to open...")
                 ser = start_serial_port()
 
             if ser and ser.is_open:
                 # Seri port üzerinden veri gönderme veya alma işlemleri
 
+                start_time = time.time()  # Döngü başlangıç zamanını al
+                skip_data = False
                 # Process incoming data
-                while True:      
-                    start_time = time.time()  # Döngü başlangıç zamanını al
+                while True:
+                    
                     while True:
-                        try:
-                            if (time.time() - start_time) > dataTimeoutThr:  # 200 ms'yi kontrol et
-                                dataTimeout = True
-                                break  # İç döngüden çık
-                            incoming_data = ser.readline().decode('ascii').strip()
+
+                        if (time.time() - start_time) > dataTimeoutThr:  # 200 ms'yi kontrol et
+                            print("Serial port is timed out...")
+                            logging.warning("Serial port is timed out...")
+                            skip_data = True
+                            break  # İç döngüden çık
+
+                        if ser.in_waiting > 0:  # Bekleyen veri var mı kontrol et
+                            try:
+                                incoming_data = ser.readline().decode('ascii').strip()
+                            except UnicodeDecodeError:
+                                continue  # UnicodeDecodeError oluşursa devam et
                             dataTimeout = False
                             break  # Başarılı bir okuma yapıldığında iç döngüden çık
-                        except UnicodeDecodeError:
-                            continue  # UnicodeDecodeError oluşursa devam et
+                        # else:
+                        #     time.sleep(0.01)  # Bekle ve tekrar kontrol et
+
+                    if skip_data:
+                        break   
                     
                     # Veri işleme işaretlerine göre veriyi parçala
                     if incoming_data.startswith('/'):

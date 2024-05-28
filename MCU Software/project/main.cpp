@@ -113,7 +113,7 @@ void loop() {
 	selectI2CChannel(DiffChannel);
 	diffStatusPrev = diffStatus;
 	if (pres.Begin()) {diffStatus =  true;} else {diffStatus =  false;}
-	if (!pressStatusPrev & pressStatus) {pres.Begin();}
+	if ((!pressStatusPrev) & pressStatus) {delayMicroseconds(10);pres.Begin();}
 	delayMicroseconds(10);
 	pres.Read();
 	diff_pressPa = pres.pres_pa() + diffPressPaErr;
@@ -124,7 +124,7 @@ void loop() {
 	selectI2CChannel(PressChannel);
 	pressStatusPrev = pressStatus;
 	if (bmp.begin()) {pressStatus =  true;} else {pressStatus =  false;}
-	if (!pressStatusPrev & pressStatus) {bmp.begin(bmpOversampling);}
+	if ((!pressStatusPrev) & pressStatus) {delayMicroseconds(10);bmp.begin(bmpOversampling);}
 	delayMicroseconds(10);
 	press_pressPa = bmp.readPressure();
 	delayMicroseconds(10);
@@ -293,7 +293,7 @@ void imuCheck() {
 	imuStatusPrev = imuStatus;	
 	Wire.beginTransmission(imuAdress);
 	if (Wire.endTransmission() == 0) {imuStatus = true;} else {imuStatus = false;}	
-	if (!imuStatusPrev & imuStatus) {imuInit();}
+	if ((!imuStatusPrev) & imuStatus) {delayMicroseconds(10);imuInit();}
 }
 
 void imuRead() {
@@ -354,7 +354,7 @@ void magCheck() {
 	magStatusPrev = magStatus;
 	Wire.beginTransmission(magAdress);
 	if (Wire.endTransmission() == 0) {magStatus = true;} else {magStatus = false;}
-	if (!magStatusPrev & magStatus) {magInit();}
+	if ((!magStatusPrev) & magStatus) {delayMicroseconds(10);magInit();}
 }
 
 void magRead() {
