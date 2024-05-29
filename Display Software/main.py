@@ -1,5 +1,5 @@
 # IboSoft EFIS Display Software
-# v0.1
+# v0.1.1
 
 # Libraries
 import re                       # Internal
@@ -721,8 +721,8 @@ pfdSpdTextPos = (47, 409)
 mach_transition = 100       # kts
 pfdMachTextPos = (71, 770)
     # Altitude
-alt_min = -2000
-alt_max = 36000
+alt_min = -1500
+alt_max = 29500
 alt_pointer_y = 427     # px
 alt_line_x_left = 625   # px
 alt_line_x_right = 649  # px
