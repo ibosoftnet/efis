@@ -1,4 +1,5 @@
 # IboSoft EFIS Display Software
+# v0.1
 
 # Libraries
 import re                       # Internal
@@ -405,7 +406,7 @@ class App(tk.Tk):
     def show_mag_settings_menu(self):
         self.clear_content_frame()
 
-        self.label = tk.Label(self.content_frame, text="EFIS - Mag Settings", bg="white", font=('Arial', 10, 'bold'))
+        self.label = tk.Label(self.content_frame, text="EFIS - Compass Settings", bg="white", font=('Arial', 10, 'bold'))
         self.label.pack(pady=10)
 
         # MAG TRU Button
