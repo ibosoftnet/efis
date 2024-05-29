@@ -1,7 +1,7 @@
 ﻿/*
  * EFIS Project Variables Header File
  * IBOSOFT
- * Created: 14.04.2024 00:28:50
+ * First Created: 14.04.2024 00:28:50
  * Author: Caglar
  */ 
 
